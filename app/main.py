@@ -34,3 +34,9 @@ app.include_router(analyze.router)
 app.include_router(rules.router)
 app.include_router(categories.router)
 app.include_router(export.router)
+mkdir -p app/templates app/static
+# (crée les deux fichiers index.html et styles.css comme ci-dessus)
+
+git add app/main.py app/templates/index.html app/static/styles.css
+git commit -m "feat(ui): page d'accueil minimaliste + assets statiques"
+git push
