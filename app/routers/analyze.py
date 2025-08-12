@@ -23,3 +23,16 @@ if Analyzer is None:
     Analyzer = candidates[0]
 
 from ..services.learning import LearningDB
+def _get_data_dir() -> str:
+    # 1) Si LEARNING_DB est un dossier, on l'utilise
+    # 2) Si c'est un fichier -> on prend son parent
+    # 3) Sinon fallback /tmp/csi-api
+    p = get_settings().LEARNING_DB
+    if p and os.path.isdir(p):
+        base_dir = p
+    elif p:
+        base_dir = os.path.dirname(p) or "/tmp/csi-api"
+    else:
+        base_dir = "/tmp/csi-api"
+    os.makedirs(base_dir, exist_ok=True)
+    return base_dir
