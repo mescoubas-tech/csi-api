@@ -4,7 +4,7 @@ from fastapi.responses import FileResponse
 from typing import Optional
 from ..core.config import get_settings
 from ..models.schemas import AnalysisResult, TrainPayload
-from ..services.analyzer import Analyzer
+from ..services.analyzer import RuleAnalyzer as Analyzer
 from ..services.learning import LearningDB
 
 router = APIRouter(prefix="/analyze", tags=["analyze"])
