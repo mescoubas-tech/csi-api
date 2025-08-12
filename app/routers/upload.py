@@ -3,6 +3,8 @@ from pathlib import Path
 from typing import List, Optional
 
 from fastapi import APIRouter, HTTPException, Request, UploadFile, File, Form
+from .routers import analyze, rules, health, categories, export
+from .routers.upload import router as upload_router
 from fastapi.responses import JSONResponse, HTMLResponse
 from starlette.templating import Jinja2Templates
 
