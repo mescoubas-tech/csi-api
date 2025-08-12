@@ -9,21 +9,17 @@ from .routers import analyze, rules, health, categories, export
 BASE_DIR = Path(__file__).resolve().parent
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
-app = FastAPI(
-    title="CSI API",
-    description="API d'analyse CSI",
-    version="1.0.0"
-)
+app = FastAPI(title="CSI API", description="API d'analyse CSI", version="1.0.0")
 
-# Static assets (CSS, images, etc.)
+# Fichiers statiques (CSS, images…)
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
 
-# Accueil minimaliste
+# Page d'accueil minimaliste
 @app.get("/", response_class=HTMLResponse, include_in_schema=False)
 def home(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
 
-# HEAD / pour éviter le 405 des health-checks
+# HEAD / pour éviter le 405 de certains health-checks
 @app.head("/", include_in_schema=False)
 def root_head():
     return Response(status_code=200)
@@ -34,9 +30,3 @@ app.include_router(analyze.router)
 app.include_router(rules.router)
 app.include_router(categories.router)
 app.include_router(export.router)
-mkdir -p app/templates app/static
-# (crée les deux fichiers index.html et styles.css comme ci-dessus)
-
-git add app/main.py app/templates/index.html app/static/styles.css
-git commit -m "feat(ui): page d'accueil minimaliste + assets statiques"
-git push
