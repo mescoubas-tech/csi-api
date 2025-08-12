@@ -1,5 +1,13 @@
-from fastapi import FastAPI, Response
+from pathlib import Path
+from fastapi import FastAPI, Response, Request
+from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
+from starlette.templating import Jinja2Templates
+
 from .routers import analyze, rules, health, categories, export
+
+BASE_DIR = Path(__file__).resolve().parent
+templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
 app = FastAPI(
     title="CSI API",
@@ -7,17 +15,20 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Route GET racine (status check)
-@app.get("/", include_in_schema=False)
-def root():
-    return {"status": "ok"}
+# Static assets (CSS, images, etc.)
+app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
 
-# Route HEAD racine (pour éviter le 405 sur HEAD /)
+# Accueil minimaliste
+@app.get("/", response_class=HTMLResponse, include_in_schema=False)
+def home(request: Request):
+    return templates.TemplateResponse("index.html", {"request": request})
+
+# HEAD / pour éviter le 405 des health-checks
 @app.head("/", include_in_schema=False)
 def root_head():
     return Response(status_code=200)
 
-# Inclusion des routers
+# Routers API
 app.include_router(health.router)
 app.include_router(analyze.router)
 app.include_router(rules.router)
