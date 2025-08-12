@@ -5,6 +5,8 @@ from fastapi.staticfiles import StaticFiles
 from starlette.templating import Jinja2Templates
 
 from .routers import analyze, rules, health, categories, export
+from .routers.upload import router as upload_router
+
 
 BASE_DIR = Path(__file__).resolve().parent
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
@@ -33,4 +35,6 @@ app.include_router(export.router)
 from .routers import analyze, rules, health, categories, export, upload  # + upload
 
 # ...
-app.include_router(upload.router)  # ajoute cette ligne
+from .routers import analyze, rules, health, categories, export
+from .routers.upload import router as upload_router
+
