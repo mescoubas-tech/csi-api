@@ -36,3 +36,30 @@ def _get_data_dir() -> str:
         base_dir = "/tmp/csi-api"
     os.makedirs(base_dir, exist_ok=True)
     return base_dir
+    @router.post("/", response_model=AnalysisResult)
+async def analyze_file(file: UploadFile = File(...), export_pdf: Optional[bool] = Form(False)):
+    try:
+        base_dir = _get_data_dir()
+        # nom de fichier simple et sûr
+        fname = os.path.basename(file.filename).replace(os.sep, "_")
+        save_path = os.path.join(base_dir, f"upload_{fname}")
+        with open(save_path, "wb") as f_out:
+            f_out.write(await file.read())
+
+        analyzer = _get_analyzer()
+        result = analyzer.analyze_file(save_path)
+
+        if export_pdf:
+            pdf_name = f"report_{os.path.splitext(os.path.basename(save_path))[0]}.pdf"
+            pdf_path = os.path.join(base_dir, pdf_name)
+            analyzer.export_pdf(result, pdf_path)
+
+            # si response_model=AnalysisResult, renvoie un objet AnalysisResult
+            # et expose la route /report pour le téléchargement
+            rd = result.model_dump()
+            rd["report_pdf_path"] = pdf_path
+            return rd  # ou ajuste le modèle pour inclure ce champ
+
+        return result
+    except Exception as e:
+        raise HTTPException(400, f"Erreur d'analyse: {e}")
