@@ -27,3 +27,10 @@ app.include_router(analyze.router)       # /analyze/     (POST)
 app.include_router(rules.router)         # /rules/       (GET/PUT/POST/DELETE)
 app.include_router(categories.router)    # /categories   (GET/PUT/POST)
 app.include_router(export.router)        # /export       (CSV endpoints)
+from .routers import analyze, rules, health, categories, export
+# ...
+app.include_router(health.router)
+app.include_router(analyze.router)
+app.include_router(rules.router)
+app.include_router(categories.router)
+app.include_router(export.router)   # <= cette ligne doit exister
