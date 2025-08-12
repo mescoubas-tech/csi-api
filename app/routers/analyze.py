@@ -63,3 +63,4 @@ def download_report(path: str):
     if not os.path.exists(path):
         raise HTTPException(404, "Fichier non trouvé")
     return FileResponse(path, filename=os.path.basename(path), media_type="application/pdf")
+    Analyzer = RuleAnalyzer
