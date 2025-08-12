@@ -2,45 +2,52 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 try:
-    # Facultatif : si LearningDB a besoin ici
     from .learning import LearningDB
 except Exception:
-    LearningDB = object  # pour éviter l'import error au démarrage si besoin
+    LearningDB = object  # pour éviter un import error si learning change
 
 class Analyzer:
     """
-    Implémentation minimale pour permettre le démarrage de l'app.
-    À remplacer par ta vraie logique d'analyse.
+    Implémentation minimale pour démarrer l'app.
+    Remplace progressivement par ta vraie logique.
     """
-
     def __init__(self, rules: Optional[List[Dict[str, Any]]] = None, learning: Optional[Any] = None) -> None:
         self.rules: List[Dict[str, Any]] = rules or []
         self.learning = learning
 
     def analyze_file(self, path: str):
-        """
-        Retourne une structure simple ; FastAPI essaiera de caster vers AnalysisResult
-        si les champs concordent. Tu ajusteras ces clés selon ton modèle.
-        """
         p = Path(path)
+        # Ajuste les clés pour coller exactement à AnalysisResult si besoin
         return {
             "file_name": p.name,
             "score": 0,
-            "violations": [],           # adapte au schéma attendu par AnalysisResult
-            "summary": "Analyse minimale (stub). À implémenter.",
-            "categories": [],           # si ton modèle en a besoin ; sinon supprime
+            "violations": [],
+            "summary": "Analyse minimale (stub) — à implémenter.",
+            "categories": [],
         }
 
     def export_pdf(self, result: Any, pdf_path: str) -> None:
-        """Génère un PDF très simple (dépend de reportlab présent dans requirements)."""
-        try:
-            from reportlab.lib.pagesizes import A4
-            from reportlab.pdfgen import canvas
-        except Exception as e:
-            # Pas bloquant pour le démarrage
-            raise RuntimeError(f"Reportlab requis pour l'export PDF : {e}")
+        from reportlab.lib.pagesizes import A4
+        from reportlab.pdfgen import canvas
 
         c = canvas.Canvas(pdf_path, pagesize=A4)
         w, h = A4
         y = h - 72
+        c.setFont("Helvetica", 12)
+        c.drawString(72, y, "Rapport d'analyse (stub)")
+        y -= 24
+
+        data = result if isinstance(result, dict) else getattr(result, "model_dump", lambda: {})()
+        if not isinstance(data, dict):
+            data = {"result": str(result)}
+
+        for k, v in data.items():
+            if y < 72:
+                c.showPage()
+                y = h - 72
+                c.setFont("Helvetica", 12)
+            c.drawString(72, y, f"- {k}: {v}")
+            y -= 18
+        c.showPage()
+        c.save()
 
