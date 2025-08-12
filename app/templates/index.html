@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>CSI API — Minimal</title>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="/static/styles.css" />
+  <meta name="description" content="CSI API — Interface minimale" />
+</head>
+<body>
+  <div class="bg-radial"></div>
+
+  <header class="wrap header">
+    <div class="brand">
+      <div class="logo" aria-hidden="true"></div>
+      <span class="brand-name">CSI&nbsp;API</span>
+    </div>
+    <nav class="nav">
+      <a class="nav-link" href="/docs">Docs</a>
+      <a class="nav-link" href="https://csi-api-zqo8.onrender.com/docs" target="_blank" rel="noopener">Ouvrir dans un onglet</a>
+    </nav>
+  </header>
+
+  <main class="wrap hero">
+    <h1 class="title">Analyse de conformité,<br>simple et élégante.</h1>
+    <p class="subtitle">
+      Une API sobre, rapide, prête pour vos intégrations.  
+      Démarrez en quelques secondes via la documentation interactive.
+    </p>
+    <div class="cta">
+      <a class="btn primary" href="/docs">Explorer la documentation</a>
+      <a class="btn ghost" href="/docs#/%2Fanalyze/post_analyze__">Analyser un fichier</a>
+    </div>
+
+    <section class="cards">
+      <article class="card">
+        <h3 class="card-title">/analyze</h3>
+        <p class="card-text">Chargez un document, obtenez un rapport, exportez en PDF.</p>
+      </article>
+      <article class="card">
+        <h3 class="card-title">/rules</h3>
+        <p class="card-text">Consultez et gérez l’ensemble des règles d’analyse.</p>
+      </article>
+      <article class="card">
+        <h3 class="card-title">/healthz</h3>
+        <p class="card-text">Vérification d’état pour la supervision.</p>
+      </article>
+    </section>
+  </main>
+
+  <footer class="wrap footer">
+    <span>© <span id="year"></span> CSI API</span>
+    <a class="footer-link" href="/docs">Documentation</a>
+  </footer>
+
+  <script>
+    // année dynamique
+    document.getElementById('year').textContent = new Date().getFullYear();
+  </script>
+</body>
+</html>
