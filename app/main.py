@@ -30,3 +30,7 @@ app.include_router(analyze.router)
 app.include_router(rules.router)
 app.include_router(categories.router)
 app.include_router(export.router)
+from .routers import analyze, rules, health, categories, export, upload  # + upload
+
+# ...
+app.include_router(upload.router)  # ajoute cette ligne
