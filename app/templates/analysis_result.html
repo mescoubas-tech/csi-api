@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Résultats d’analyse — CNAPS</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+  <style>
+    .ok { color:#25a244; font-weight:700; }
+    .warn { color:#e67700; font-weight:700; }
+    .bad { color:#e03131; font-weight:700; }
+    .card { border:1px solid var(--border); border-radius:14px; padding:14px; background:var(--card); margin:12px 0; }
+    summary { cursor:pointer; }
+    code { background:rgba(255,255,255,0.06); padding:2px 6px; border-radius:6px; }
+  </style>
+</head>
+<body class="wrap">
+  <header style="display:flex;gap:12px;align-items:center;justify-content:space-between;">
+    <h1>Résultats d’analyse</h1>
+    <nav><a href="/">Accueil</a> · <a href="/televerser">Téléverser</a></nav>
+  </header>
+
+  <section class="card">
+    <h2>Dossier</h2>
+    <p><code>{{ company_folder }}</code></p>
+  </section>
+
+  <section class="card">
+    <h2>Présence des pièces</h2>
+    {% if presences and presences|length > 0 %}
+      <ul>
+        {% for label, n in presences %}
+          <li><span class="ok">✔</span> {{ label }} — {{ n }} fichier(s)</li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="warn">Aucune pièce détectée.</p>
+    {% endif %}
+
+    {% if missing and missing|length > 0 %}
+      <h3>Pièces manquantes</h3>
+      <ul>
+        {% for m in missing %}
+          <li class="bad">✘ {{ m }}</li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="ok">Toutes les pièces attendues sont présentes ✅</p>
+    {% endif %}
+  </section>
+
+  <section class="card">
+    <h2>Plannings des agents</h2>
+    {% if error %}
+      <p class="bad">{{ error }}</p>
+    {% elif not schedules %}
+      <p class="warn">Aucun planning détecté.</p>
+    {% else %}
+      {% set vio = schedules.violations or [] %}
+      {% if vio|length == 0 %}
+        <p class="ok">Aucune violation détectée ✅</p>
+      {% else %}
+        <p class="bad">{{ vio|length }} violation(s) détectée(s) :</p>
+        <details open>
+          <summary>Voir le détail</summary>
+          <ul>
+            {% for v in vio %}
+              <li>
+                [{{ v.agent_id }}] {{ v.type }} —
+                {% if v.date %}{{ v.date }}{% elif v.week %}{{ v.week }}{% endif %} :
+                {{ v.details }}
+              </li>
+            {% endfor %}
+          </ul>
+        </details>
+      {% endif %}
+    {% endif %}
+  </section>
+
+  <p><a class="btn" href="/televerser">Analyser un autre dossier</a></p>
+</body>
+</html>
