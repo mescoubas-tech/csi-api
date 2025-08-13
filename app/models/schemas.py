@@ -31,3 +31,28 @@ class RuleItem(BaseModel):
     model_config = {
         "extra": "allow"  # tolère des champs additionnels si ton YAML en contient
     }
+from datetime import date
+from typing import Any, Dict
+
+class ScheduleViolation(BaseModel):
+    agent_id: str
+    type: str                 # ex: "DAILY_MAX", "WEEKLY_MAX", "DAILY_REST", "WEEKLY_REST", "CONSEC_DAYS", "AVG_12W"
+    date: Optional[date] = None
+    week: Optional[str] = None # ex: "2025-W33"
+    details: str
+    value: float
+    threshold: float
+
+class ScheduleStats(BaseModel):
+    agent_id: str
+    total_hours: float
+    days_worked: int
+    weeks_counted: int
+
+class SchedulesCheckResult(BaseModel):
+    period_start: Optional[date] = None
+    period_end: Optional[date] = None
+    agents: List[str] = []
+    stats: List[ScheduleStats] = []
+    violations: List[ScheduleViolation] = []
+    extras: Dict[str, Any] = {}
