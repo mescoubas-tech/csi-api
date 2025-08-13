@@ -194,5 +194,20 @@
       }
     });
   </script>
+  <form id="analyzeForm" action="/ui/analyze" method="post" style="display:none;">
+  <input type="hidden" name="company_folder" id="company_folder_input" />
+</form>
 </body>
 </html>
+// Récupère le nom du dossier pour l'analyse
+const full = data.upload_folder || "";
+const folderName = full.split("/").pop();  // ex: ACME_SECURITE_2025-08-13_142512
+document.getElementById('company_folder_input').value = folderName;
+
+// Affiche un bouton "Analyser" et déclenche le POST vers /ui/analyze
+let btn = document.createElement('button');
+btn.className = 'btn';
+btn.textContent = 'Analyser';
+btn.style.marginLeft = '8px';
+btn.onclick = (ev) => { ev.preventDefault(); document.getElementById('analyzeForm').submit(); };
+sendBtn.insertAdjacentElement('afterend', btn);
