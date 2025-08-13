@@ -37,9 +37,16 @@ app.include_router(rules.router)
 app.include_router(categories.router)
 app.include_router(export.router)
 app.include_router(upload_router)  # <= upload
+app.include_router(schedules_router)
 from .routers import analyze, rules, health, categories, export, schedules
 # ...
 app.include_router(schedules.router)
 from .routers import analyze, rules, health, categories, export
 from .routers.upload import router as upload_router
 from .routers.schedules import router as schedules_router
+try:
+    from .routers.schedules import router as schedules_router
+    app.include_router(schedules_router)
+except Exception:
+    # on démarre sans les routes schedules si le module manque
+    pass
