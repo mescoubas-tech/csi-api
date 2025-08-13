@@ -50,3 +50,6 @@ try:
 except Exception:
     # on démarre sans les routes schedules si le module manque
     pass
+from .routers.ui import router as ui_router
+# ...
+app.include_router(ui_router)
