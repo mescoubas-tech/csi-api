@@ -36,3 +36,6 @@ app.include_router(rules.router)
 app.include_router(categories.router)
 app.include_router(export.router)
 app.include_router(upload_router)  # <= upload
+from .routers import analyze, rules, health, categories, export, schedules
+# ...
+app.include_router(schedules.router)
