@@ -1,5 +1,2 @@
-from fastapi import FastAPI
-app = FastAPI()
-@app.get('/')
-async def root():
-    return {'message': 'CSI API v1.5.0'}
+from app.routes_upload_simple import router as upload_simple_router
+app.include_router(upload_simple_router)
