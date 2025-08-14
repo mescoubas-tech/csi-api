@@ -2,12 +2,11 @@
 from __future__ import annotations
 from pathlib import Path
 from typing import Dict, List, Tuple
-from fastapi import APIRouter, Form, HTTPException
-from fastapi.responses import HTMLResponse
+from fastapi import APIRouter, Form, HTTPException, Request
 from starlette.templating import Jinja2Templates
 
 from ..core.config import get_settings
-from ..services.schedule_checker import check_schedules  # version complète ou stub OK
+from ..services.schedule_checker import check_schedules  # OK si stub ou version complète
 
 router = APIRouter(prefix="/ui", tags=["ui"])
 templates = Jinja2Templates(directory=str(Path(__file__).resolve().parents[1] / "templates"))
@@ -25,7 +24,7 @@ REQUIRED_FOLDERS: Dict[str, str] = {
     "liasse_fiscale_derniere": "Dernière liasse fiscale",
     "grand_livre_comptes": "Grand livre de comptes",
     "plannings_agents_6mois": "Plannings des agents (6 mois)",
-    "bulletins_paie_agents_6mois": "Bulletins de paie agents (6 mois)",
+    "bulletins_paie_agents_6mois": "Bulletins de paie des agents (6 mois)",
     "factures_6mois": "Factures (6 mois)",
     "liste_sous_traitants": "Liste des sous-traitants",
     "attestations_vigilance_sous_traitants": "Attestations vigilance (sous-traitants)",
@@ -41,7 +40,6 @@ def _list_files(d: Path) -> List[Path]:
     return [p for p in d.glob("**/*") if p.is_file()]
 
 def _presence_check(folder: Path) -> Tuple[List[Tuple[str,int]], List[str]]:
-    """Retourne (présences, manquantes) où présences = [(libellé, nb_fichiers)]"""
     presences: List[Tuple[str, int]] = []
     missing: List[str] = []
     for key, label in REQUIRED_FOLDERS.items():
@@ -53,8 +51,8 @@ def _presence_check(folder: Path) -> Tuple[List[Tuple[str,int]], List[str]]:
             missing.append(label)
     return presences, missing
 
-@router.post("/analyze", response_class=HTMLResponse)
-async def ui_analyze(company_folder: str = Form(...)):
+@router.post("/analyze")
+async def ui_analyze(request: Request, company_folder: str = Form(...)):
     base = Path(get_settings().UPLOADS_DIR)
     folder = (base / company_folder).resolve()
 
@@ -66,9 +64,19 @@ async def ui_analyze(company_folder: str = Form(...)):
     # 1) Vérif présence des pièces
     presences, missing = _presence_check(folder)
 
-    # 2) Analyse des plannings (si présents)
-    plan_dir = folder / "plannings_agents_6mois"
-    plan_files = [p for p in _list_files(plan_dir) if p.suffix.lower() in (".csv", ".xlsx", ".xlsm")] if plan_dir.exists() else []
+    # 2) Analyse des plannings (CSV/XLSX/XLSM) — détection robuste de plusieurs noms de dossiers
+    candidate_dirs = [
+        folder / "plannings_agents_6mois",
+        folder / "plannings_agents",
+        folder / "plannings",
+        folder / "planning",
+        folder / "planning_agents",
+    ]
+    plan_files: List[Path] = []
+    for d in candidate_dirs:
+        if d.exists():
+            plan_files += [p for p in _list_files(d) if p.suffix.lower() in (".csv", ".xlsx", ".xlsm")]
+
     schedules = None
     error = None
     if plan_files:
@@ -81,7 +89,7 @@ async def ui_analyze(company_folder: str = Form(...)):
     return templates.TemplateResponse(
         "analysis_result.html",
         {
-            "request": None,  # pas utilisé dans le template, sinon passer une vraie Request
+            "request": request,
             "company_folder": company_folder,
             "presences": presences,
             "missing": missing,
