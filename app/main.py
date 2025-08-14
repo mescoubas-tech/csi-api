@@ -53,3 +53,5 @@ except Exception:
 from .routers.ui import router as ui_router
 # ...
 app.include_router(ui_router)
+from app.routes_analyze_latest import router as analyze_latest_router
+app.include_router(analyze_latest_router)
