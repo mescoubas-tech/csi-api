@@ -56,3 +56,25 @@ class SchedulesCheckResult(BaseModel):
     stats: List[ScheduleStats] = []
     violations: List[ScheduleViolation] = []
     extras: Dict[str, Any] = {}
+    # --- Modèles pour l'analyse des plannings ---
+from typing import List, Optional, Dict, Any
+from pydantic import BaseModel
+
+class ScheduleViolation(BaseModel):
+    agent_id: str
+    type: str                 # DAILY_MAX / WEEKLY_MAX / AVG_12W / DAILY_REST / CONSEC_DAYS ...
+    date: Optional[str] = None
+    week: Optional[str] = None
+    details: str
+
+class ScheduleStat(BaseModel):
+    agent_id: str
+    total_hours: float
+    days_worked: int
+    weeks_count: int
+
+class SchedulesCheckResult(BaseModel):
+    agents: List[str]
+    stats: List[ScheduleStat]
+    violations: List[ScheduleViolation]
+    extras: Dict[str, Any] = {}
