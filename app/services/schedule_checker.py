@@ -1,241 +1,244 @@
+# app/services/schedule_checker.py
 from __future__ import annotations
-import csv
-import math
-from datetime import datetime, timedelta, date, time
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Tuple
+from typing import Iterable, List, Dict, Tuple
+from datetime import datetime, timedelta, date
+import csv
+
+try:
+    import openpyxl  # type: ignore
+except Exception:
+    openpyxl = None
 
 from ..core.config import get_settings
-from ..models.schemas import SchedulesCheckResult, ScheduleStats, ScheduleViolation
+from ..models.schemas import SchedulesCheckResult, ScheduleViolation, ScheduleStat
+from .pdf_schedule_parser import parse_pdf_schedules
 
-# -------- Parsing fichiers --------
+TIME_FMT = "%H:%M"
 
-_COL_MAP = {
-    "agent": "agent_id", "id": "agent_id", "matricule": "agent_id", "agent_id": "agent_id",
-    "date": "date",
-    "start": "start_time", "debut": "start_time", "heure_debut": "start_time", "debut_poste": "start_time",
-    "end": "end_time", "fin": "end_time", "heure_fin": "end_time", "fin_poste": "end_time",
-    "break": "break_minutes", "pause": "break_minutes", "pause_min": "break_minutes", "break_minutes": "break_minutes"
+ALIASES = {
+    "agent_id": {"agent_id", "agent", "matricule", "id"},
+    "date": {"date", "jour"},
+    "start_time": {"start_time", "start", "debut", "début", "heure_debut", "debut_poste"},
+    "end_time": {"end_time", "end", "fin", "heure_fin", "fin_poste"},
+    "break_minutes": {"break_minutes", "break", "pause", "pause_min", "pause (min)"},
 }
 
-def _norm(s: str) -> str:
-    return (s or "").strip().lower().replace(" ", "_").replace("-", "_")
+def _norm_header(name: str) -> str:
+    n = name.strip().lower().replace("é","e").replace("è","e").replace("ê","e").replace("’","'")
+    for canon, al in ALIASES.items():
+        if n in al:
+            return canon
+    return name
 
-def _guess_map(headers: List[str]) -> Dict[str, str]:
-    m: Dict[str, str] = {}
-    for h in headers:
-        k = _COL_MAP.get(_norm(h))
-        if k: m[k] = h
-    # champs indispensables
-    for req in ("agent_id", "date", "start_time", "end_time"):
-        if req not in m: raise ValueError(f"Colonne manquante: {req} (en-têtes: {headers})")
-    return m
+def _parse_time(s: str) -> datetime:
+    s = s.strip().lower().replace(" ", "").replace("h", ":").replace(".", ":")
+    hh, mm = s.split(":")
+    return datetime.strptime(f"{int(hh):02d}:{int(mm):02d}", TIME_FMT)
 
 def _parse_date(s: str) -> date:
     for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%d/%m/%y"):
-        try: return datetime.strptime(s.strip(), fmt).date()
-        except: pass
-    raise ValueError(f"Date invalide: {s!r}")
-
-def _parse_time(s: str) -> time:
-    for fmt in ("%H:%M", "%H:%M:%S"):
-        try: return datetime.strptime(s.strip(), fmt).time()
-        except: pass
-    raise ValueError(f"Heure invalide: {s!r}")
-
-def _read_csv(path: Path) -> List[dict]:
-    with open(path, "r", encoding="utf-8", newline="") as f:
-        sample = f.read(4096); f.seek(0)
         try:
-            dialect = csv.Sniffer().sniff(sample, delimiters=";,")
-        except:
-            dialect = csv.excel
-        reader = csv.DictReader(f, dialect=dialect)
-        rows = list(reader)
+            return datetime.strptime(s.strip(), fmt).date()
+        except Exception:
+            pass
+    s2 = s.replace(".", "/").replace("-", "/")
+    for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%d/%m/%y"):
+        try:
+            return datetime.strptime(s2.strip(), fmt).date()
+        except Exception:
+            pass
+    raise ValueError(f"Date invalide: {s}")
+
+def _dur_minutes(start: datetime, end: datetime) -> int:
+    # gestion nuit: fin < début => +24h
+    if end <= start:
+        end = end + timedelta(days=1)
+    return int((end - start).total_seconds() // 60)
+
+def _read_csv(p: Path) -> List[Dict]:
+    rows: List[Dict] = []
+    with open(p, "r", encoding="utf-8", newline="") as f:
+        reader = csv.DictReader(f)
+        header = {k: _norm_header(k) for k in reader.fieldnames or []}
+        for r in reader:
+            rec = {header.get(k, k): (r[k] if r.get(k) is not None else "") for k in r}
+            rows.append(rec)
     return rows
 
-def _read_xlsx(path: Path) -> List[dict]:
-    try:
-        import openpyxl  # type: ignore
-    except Exception:
-        raise RuntimeError("openpyxl requis pour lire les XLSX (ajoute-le à requirements.txt).")
-    wb = openpyxl.load_workbook(path, data_only=True)
+def _read_xlsx(p: Path) -> List[Dict]:
+    if openpyxl is None:
+        return []
+    wb = openpyxl.load_workbook(p)
     ws = wb.active
-    headers = [str((c.value or "")).strip() for c in next(ws.iter_rows(min_row=1, max_row=1))]
-    rows: List[dict] = []
-    for r in ws.iter_rows(min_row=2, values_only=True):
-        row = {}
-        for i, h in enumerate(headers):
-            row[h] = "" if i >= len(r) or r[i] is None else str(r[i])
-        rows.append(row)
+    header_map: Dict[int, str] = {}
+    rows: List[Dict] = []
+    for j, cell in enumerate(ws[1], 1):
+        if cell.value:
+            header_map[j] = _norm_header(str(cell.value))
+    for i in range(2, ws.max_row + 1):
+        rec: Dict[str, str] = {}
+        for j in range(1, ws.max_column + 1):
+            key = header_map.get(j)
+            if not key:
+                continue
+            val = ws.cell(row=i, column=j).value
+            rec[key] = str(val) if val is not None else ""
+        rows.append(rec)
     return rows
 
-def read_schedules(files: Iterable[Path]) -> List[dict]:
-    """Retourne une liste de shifts normalisés : {agent_id,date,start_time,end_time,break_minutes}"""
-    shifts: List[dict] = []
-    for p in files:
-        p = Path(p)
-        if not p.exists(): continue
-        rows = _read_xlsx(p) if p.suffix.lower() in (".xlsx", ".xlsm") else _read_csv(p)
-        if not rows: continue
-        m = _guess_map(list(rows[0].keys()))
-        for r in rows:
-            agent = str(r[m["agent_id"]]).strip()
-            d = _parse_date(str(r[m["date"]]))
-            t1 = _parse_time(str(r[m["start_time"]]))
-            t2 = _parse_time(str(r[m["end_time"]]))
-            br = 0
-            if "break_minutes" in m:
-                try: br = int(float(str(r[m["break_minutes"]]).replace(",", ".") or "0"))
-                except: br = 0
-            start_dt = datetime.combine(d, t1)
-            end_dt = datetime.combine(d, t2)
-            if end_dt <= start_dt:
-                end_dt += timedelta(days=1)  # nuit
-            duration = (end_dt - start_dt).total_seconds()/3600.0 - br/60.0
-            if duration < 0: duration = 0.0
-            shifts.append({
-                "agent_id": agent or "INCONNU",
+def _normalize_rows(raw: List[Dict]) -> List[Dict]:
+    out: List[Dict] = []
+    for r in raw:
+        try:
+            agent = (r.get("agent_id") or "").strip()
+            if not agent:
+                continue
+            d = _parse_date(r.get("date",""))
+            st = _parse_time(str(r.get("start_time","")))
+            en = _parse_time(str(r.get("end_time","")))
+            br = int(r.get("break_minutes") or 0)
+            out.append({
+                "agent_id": agent,
                 "date": d,
-                "start_dt": start_dt,
-                "end_dt": end_dt,
-                "hours": duration
+                "start": st,
+                "end": en,
+                "break_min": br
             })
-    # ordonner par agent puis début
-    shifts.sort(key=lambda x: (x["agent_id"], x["start_dt"]))
-    return shifts
+        except Exception:
+            continue
+    return out
 
-# -------- Contrôles --------
+def _group_by_agent(rows: List[Dict]) -> Dict[str, List[Dict]]:
+    g: Dict[str, List[Dict]] = {}
+    for r in rows:
+        g.setdefault(r["agent_id"], []).append(r)
+    for a in g:
+        g[a].sort(key=lambda x: (x["date"], x["start"].time()))
+    return g
 
-def iso_week_key(d: date) -> str:
-    y, w, _ = d.isocalendar()
-    return f"{y}-W{w:02d}"
+def check_schedules(paths: Iterable[Path]) -> SchedulesCheckResult:
+    paths = [Path(p) for p in paths]
+    raw: List[Dict] = []
 
-def check_schedules(files: Iterable[Path]) -> SchedulesCheckResult:
-    s = get_settings()
-    shifts = read_schedules(files)
-    if not shifts:
-        return SchedulesCheckResult(agents=[], stats=[], violations=[], extras={"note": "Aucun shift lu."})
+    # PDF
+    pdf_rows = parse_pdf_schedules([p for p in paths if p.suffix.lower() == ".pdf"])
+    raw.extend(pdf_rows)
 
-    agents = sorted({x["agent_id"] for x in shifts})
-    # agrégats
-    by_agent: Dict[str, List[dict]] = {a: [] for a in agents}
-    for sh in shifts: by_agent[sh["agent_id"]].append(sh)
+    # CSV / XLSX
+    for p in paths:
+        suf = p.suffix.lower()
+        if suf == ".csv":
+            raw.extend(_read_csv(p))
+        elif suf in (".xlsx", ".xlsm"):
+            raw.extend(_read_xlsx(p))
 
+    rows = _normalize_rows(raw)
+    groups = _group_by_agent(rows)
+
+    S = get_settings()
     violations: List[ScheduleViolation] = []
-    stats: List[ScheduleStats] = []
+    stats: List[ScheduleStat] = []
 
-    # périodes
-    period_start = min(x["start_dt"].date() for x in shifts)
-    period_end = max(x["end_dt"].date() for x in shifts)
+    for agent, shifts in groups.items():
+        # calculs par jour & semaine
+        daily_minutes: Dict[date, int] = {}
+        weeks: Dict[Tuple[int,int], int] = {}  # (year, iso_week) -> minutes
+        last_shift_end_by_day: Dict[date, datetime] = {}
+        # pour repos quotidien/harmonisation, on garde une timeline
+        previous_end: datetime | None = None
+        consec_days = 0
+        last_day: date | None = None
 
-    for a in agents:
-        A = by_agent[a]
-        # stats totales
-        total_hours = round(sum(x["hours"] for x in A), 2)
-        days_worked = len({x["start_dt"].date() for x in A})
-        # weekly totals
-        weekly: Dict[str, float] = {}
-        for x in A:
-            k = iso_week_key(x["start_dt"].date())
-            weekly[k] = weekly.get(k, 0.0) + x["hours"]
+        for sh in shifts:
+            minutes = _dur_minutes(sh["start"], sh["end"]) - int(sh["break_min"] or 0)
+            minutes = max(0, minutes)
+            d = sh["date"]
+            daily_minutes[d] = daily_minutes.get(d, 0) + minutes
 
-        # 1) Max journalier
-        per_day: Dict[date, float] = {}
-        for x in A:
-            d = x["start_dt"].date()
-            per_day[d] = per_day.get(d, 0.0) + x["hours"]
-        for d, h in per_day.items():
-            if h > s.MAX_HOURS_PER_DAY + 1e-6:
-                violations.append(ScheduleViolation(
-                    agent_id=a, type="DAILY_MAX", date=d,
-                    details=f"{h:.2f} h travaillées (max {s.MAX_HOURS_PER_DAY} h)",
-                    value=round(h,2), threshold=s.MAX_HOURS_PER_DAY
-                ))
+            iso = d.isocalendar()  # year, week, weekday
+            key = (iso[0], iso[1])
+            weeks[key] = weeks.get(key, 0) + minutes
 
-        # 2) Max hebdo 48h
-        for wk, h in weekly.items():
-            if h > s.MAX_HOURS_PER_WEEK + 1e-6:
-                violations.append(ScheduleViolation(
-                    agent_id=a, type="WEEKLY_MAX", week=wk,
-                    details=f"{h:.2f} h sur la semaine {wk} (max {s.MAX_HOURS_PER_WEEK} h)",
-                    value=round(h,2), threshold=s.MAX_HOURS_PER_WEEK
-                ))
-
-        # 3) Moyenne 12 semaines <= 44h
-        weeks_sorted = sorted(weekly.keys())
-        hours_list = [weekly[w] for w in sorted(weekly.keys())]
-        # fenêtre glissante de 12 semaines
-        for i in range(0, len(hours_list)):
-            j = min(i+12, len(hours_list))
-            if j - i == 12:
-                avg = sum(hours_list[i:j]) / 12.0
-                if avg > s.AVG_HOURS_PER_12W + 1e-6:
-                    wkwin = f"{weeks_sorted[i]}..{weeks_sorted[j-1]}"
+            # Repos quotidien (11h)
+            if previous_end is not None:
+                rest = (sh["start"] - previous_end).total_seconds() / 3600.0
+                if rest < S.MIN_DAILY_REST_HOURS:
                     violations.append(ScheduleViolation(
-                        agent_id=a, type="AVG_12W", week=wkwin,
-                        details=f"Moyenne {avg:.2f} h / semaine sur 12 sem. (max {s.AVG_HOURS_PER_12W} h)",
-                        value=round(avg,2), threshold=s.AVG_HOURS_PER_12W
+                        agent_id=agent,
+                        type="DAILY_REST",
+                        date=d.isoformat(),
+                        details=f"Repos quotidien {rest:.1f}h < {S.MIN_DAILY_REST_HOURS}h"
                     ))
+            previous_end = sh["end"]
+            if previous_end <= sh["start"]:
+                previous_end = previous_end + timedelta(days=1)
 
-        # 4) Repos quotidien 11h
-        for i in range(1, len(A)):
-            rest = (A[i]["start_dt"] - A[i-1]["end_dt"]).total_seconds()/3600.0
-            if rest < s.MIN_DAILY_REST_HOURS - 1e-6:
-                violations.append(ScheduleViolation(
-                    agent_id=a, type="DAILY_REST", date=A[i]["start_dt"].date(),
-                    details=f"Repos {rest:.2f} h entre deux shifts (min {s.MIN_DAILY_REST_HOURS} h)",
-                    value=round(rest,2), threshold=s.MIN_DAILY_REST_HOURS
-                ))
-
-        # 5) Repos hebdomadaire 35h (approx : meilleure coupure sur semaine ISO)
-        # On calcule, pour chaque semaine, l'écart max entre blocs travaillés.
-        from collections import defaultdict
-        blocks = defaultdict(list)
-        for x in A:
-            blocks[iso_week_key(x["start_dt"].date())].append((x["start_dt"], x["end_dt"]))
-        for wk, intervals in blocks.items():
-            intervals.sort()
-            max_gap = 0.0
-            # gap avant premier et après dernier (vers 7j)
-            week_start = intervals[0][0].replace(hour=0, minute=0, second=0, microsecond=0)
-            week_end = week_start + timedelta(days=7)
-            prev_end = week_start
-            for st, en in intervals:
-                gap = (st - prev_end).total_seconds()/3600.0
-                if gap > max_gap: max_gap = gap
-                if en > prev_end: prev_end = en
-            # gap final
-            max_gap = max(max_gap, (week_end - prev_end).total_seconds()/3600.0)
-            if max_gap < s.MIN_WEEKLY_REST_HOURS - 1e-6:
-                violations.append(ScheduleViolation(
-                    agent_id=a, type="WEEKLY_REST", week=wk,
-                    details=f"Repos hebdo max {max_gap:.2f} h (min {s.MIN_WEEKLY_REST_HOURS} h)",
-                    value=round(max_gap,2), threshold=s.MIN_WEEKLY_REST_HOURS
-                ))
-
-        # 6) Jours consécutifs > 6
-        days_sorted = sorted({x["start_dt"].date() for x in A})
-        run = 1
-        for i in range(1, len(days_sorted)):
-            if (days_sorted[i] - days_sorted[i-1]).days == 1:
-                run += 1
-                if run > s.MAX_CONSECUTIVE_DAYS:
-                    violations.append(ScheduleViolation(
-                        agent_id=a, type="CONSEC_DAYS", date=days_sorted[i],
-                        details=f"{run} jours travaillés d'affilée (> {s.MAX_CONSECUTIVE_DAYS})",
-                        value=float(run), threshold=float(s.MAX_CONSECUTIVE_DAYS)
-                    ))
+            # Jours consécutifs
+            if last_day is None or (d - last_day).days == 1:
+                consec_days += 1
+            elif d == last_day:
+                pass
             else:
-                run = 1
+                consec_days = 1
+            last_day = d
+            if consec_days > S.MAX_CONSECUTIVE_DAYS:
+                violations.append(ScheduleViolation(
+                    agent_id=agent,
+                    type="CONSEC_DAYS",
+                    date=d.isoformat(),
+                    details=f"{consec_days} jours consécutifs > {S.MAX_CONSECUTIVE_DAYS}"
+                ))
 
-        stats.append(ScheduleStats(
-            agent_id=a, total_hours=round(total_hours,2),
-            days_worked=days_worked, weeks_counted=len(weekly)
+        # seuils journaliers
+        for d, mins in daily_minutes.items():
+            if mins > int(S.MAX_HOURS_PER_DAY * 60):
+                violations.append(ScheduleViolation(
+                    agent_id=agent,
+                    type="DAILY_MAX",
+                    date=d.isoformat(),
+                    details=f"{mins/60:.2f} h > {S.MAX_HOURS_PER_DAY} h / jour"
+                ))
+
+        # seuils hebdomadaires & moyenne 12 semaines
+        weeks_sorted = sorted(weeks.items())
+        for (y, w), mins in weeks_sorted:
+            if mins > int(S.MAX_HOURS_PER_WEEK * 60):
+                violations.append(ScheduleViolation(
+                    agent_id=agent,
+                    type="WEEKLY_MAX",
+                    week=f"{y}-W{w:02d}",
+                    details=f"{mins/60:.2f} h > {S.MAX_HOURS_PER_WEEK} h / semaine"
+                ))
+
+        # moyenne glissante sur 12 semaines
+        if len(weeks_sorted) >= 12:
+            for i in range(0, len(weeks_sorted) - 11):
+                window = weeks_sorted[i:i+12]
+                total = sum(m for _, m in window)
+                avg_h = (total/12) / 60.0
+                if avg_h > S.AVG_HOURS_PER_12W:
+                    startw = f"{window[0][0][0]}-W{window[0][0][1]:02d}"
+                    endw   = f"{window[-1][0][0]}-W{window[-1][0][1]:02d}"
+                    violations.append(ScheduleViolation(
+                        agent_id=agent,
+                        type="AVG_12W",
+                        week=f"{startw}→{endw}",
+                        details=f"moyenne {avg_h:.2f} h > {S.AVG_HOURS_PER_12W} h / 12 sem."
+                    ))
+
+        # stats
+        total_min = sum(daily_minutes.values())
+        stats.append(ScheduleStat(
+            agent_id=agent,
+            total_hours=round(total_min/60.0, 2),
+            days_worked=len(daily_minutes),
+            weeks_count=len(weeks)
         ))
 
     return SchedulesCheckResult(
-        period_start=period_start, period_end=period_end,
-        agents=agents, stats=stats, violations=violations,
-        extras={"note": "Contrôles standard ; adaptez les seuils dans la config si nécessaire."}
+        agents=sorted(set(groups.keys())),
+        stats=stats,
+        violations=violations,
+        extras={}
     )
