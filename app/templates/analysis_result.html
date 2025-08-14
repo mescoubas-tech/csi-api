@@ -6,12 +6,29 @@
   <title>Résultats d’analyse — CNAPS</title>
   <link rel="stylesheet" href="/static/styles.css" />
   <style>
+    :root { --border: rgba(0,0,0,.15); --card: rgba(255,255,255,0.04); --muted:#7a7a7a; }
+    body.wrap { width:min(1100px,92vw); margin:28px auto; }
     .ok { color:#25a244; font-weight:700; }
     .warn { color:#e67700; font-weight:700; }
     .bad { color:#e03131; font-weight:700; }
     .card { border:1px solid var(--border); border-radius:14px; padding:14px; background:var(--card); margin:12px 0; }
     summary { cursor:pointer; }
     code { background:rgba(255,255,255,0.06); padding:2px 6px; border-radius:6px; }
+    .btn { display:inline-block; padding:10px 16px; border-radius:999px; border:1px solid var(--border); font-weight:600; text-decoration:none; }
+    .btn.primary { background:#111; color:#fff; border-color:transparent; }
+
+    /* Modal */
+    dialog.modal {
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 20px 18px;
+      max-width: 520px;
+      box-shadow: 0 20px 60px rgba(0,0,0,.25);
+      background: var(--card);
+    }
+    .modal h3 { margin: 0 0 8px 0; }
+    .modal .ok { color:#25a244; font-weight:700; }
+    .modal .actions { margin-top:14px; text-align:right; }
   </style>
 </head>
 <body class="wrap">
@@ -19,6 +36,17 @@
     <h1>Résultats d’analyse</h1>
     <nav><a href="/">Accueil</a> · <a href="/televerser">Téléverser</a></nav>
   </header>
+
+  <!-- Fenêtre de confirmation conformité temps de travail -->
+  <dialog id="okModal" class="modal">
+    <h3 class="ok">Réglementation en matière de temps de travail conforme</h3>
+    <p>Aucune non-conformité détectée dans les plannings analysés.</p>
+    <div class="actions">
+      <form method="dialog">
+        <button class="btn primary">Fermer</button>
+      </form>
+    </div>
+  </dialog>
 
   <section class="card">
     <h2>Dossier</h2>
@@ -45,7 +73,7 @@
         {% endfor %}
       </ul>
     {% else %}
-      <p class="ok">Toutes les pièces attendues sont présentes ✅</p>
+      <p class="ok">Toutes les pièces attendues sont présentes.</p>
     {% endif %}
   </section>
 
@@ -53,12 +81,22 @@
     <h2>Plannings des agents</h2>
     {% if error %}
       <p class="bad">{{ error }}</p>
+
     {% elif not schedules %}
-      <p class="warn">Aucun planning détecté.</p>
+      {% if planning_ignored_count and planning_ignored_count > 0 %}
+        <p class="warn">
+          {{ planning_ignored_count }} fichier(s) de planning détecté(s) en PDF/ZIP — non analysables.
+          Merci de fournir un fichier <strong>CSV</strong> ou <strong>XLSX</strong> avec les en-têtes :
+          <code>agent_id,date,start_time,end_time,break_minutes</code>.
+        </p>
+      {% else %}
+        <p class="warn">Aucun planning détecté.</p>
+      {% endif %}
+
     {% else %}
       {% set vio = schedules.violations or [] %}
       {% if vio|length == 0 %}
-        <p class="ok">Aucune violation détectée ✅</p>
+        <p class="ok">Aucune violation détectée.</p>
       {% else %}
         <p class="bad">{{ vio|length }} violation(s) détectée(s) :</p>
         <details open>
@@ -78,5 +116,18 @@
   </section>
 
   <p><a class="btn" href="/televerser">Analyser un autre dossier</a></p>
+
+  <script>
+    (function () {
+      try {
+        const hasSchedules = {{ 'true' if schedules else 'false' }};
+        const violationsCount = {{ (schedules.violations | length) if schedules else 0 }};
+        if (hasSchedules && violationsCount === 0) {
+          const dlg = document.getElementById('okModal');
+          if (dlg && dlg.showModal) dlg.showModal();
+        }
+      } catch (e) { /* ignore */ }
+    })();
+  </script>
 </body>
 </html>
