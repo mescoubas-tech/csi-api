@@ -1,90 +1,71 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="fr">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Analyse de conformité Livre 6 du Code de la Sécurité Intérieure — Minimal</title>
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <title>Analyse de conformité CNAPS</title>
   <link rel="stylesheet" href="/static/styles.css" />
-  <meta name="description" content="CSI API — Interface minimale" />
+  <style>
+    .hero { max-width: 1100px; margin: 72px auto 40px; text-align: center; padding: 0 16px; }
+    .hero h1 { margin: 0 0 16px 0; line-height: 1.05; }
+    .hero p  { margin: 0; color: var(--muted); font-size: 1.1rem; }
+    .cta { margin-top: 20px; display: flex; justify-content: center; gap: 12px; flex-wrap: wrap; }
+    .btn { display:inline-block; padding:12px 18px; border-radius:999px; border:1px solid var(--border); font-weight:600; text-decoration:none; }
+    .btn.primary { background: var(--fg); color: var(--bg); border-color: transparent; }
+    .wrap-narrow { width: min(1000px, 92vw); margin: 0 auto; padding: 0 16px; }
+    footer { color: var(--muted); font-size: 0.9rem; padding: 32px 0; }
+  </style>
 </head>
 <body>
-  <div class="bg-radial"></div>
-
-  <header class="wrap header">
-    <div class="brand">
-      <div class="logo" aria-hidden="true"></div>
-      <span class="brand-name">Analyse de conformité Livre 6 du Code de la Sécurité Intérieure</span>
+  <header class="wrap-narrow" style="display:flex;align-items:center;justify-content:space-between;padding-top:20px;">
+    <div style="display:flex;align-items:center;gap:10px;">
+      <div style="width:28px;height:28px;border-radius:8px;background:linear-gradient(135deg,#9fc3ff,#e6f0ff);border:1px solid rgba(0,0,0,.08);"></div>
+      <strong>CSI API</strong>
     </div>
-    <nav class="nav">
-      <a class="nav-link" href="/docs">Docs</a>
-      <a class="nav-link" href="https://csi-api-zqo8.onrender.com/docs" target="_blank" rel="noopener">Ouvrir dans un onglet</a>
-    </nav>
+    <!-- Lien “Documentation” facultatif : supprimez si vous ne voulez plus l’afficher -->
+    <nav><a href="/docs" style="color:var(--muted);text-decoration:none;">Documentation</a></nav>
   </header>
 
-  <main class="wrap hero">
-    <h1 class="title">Analyse de conformité Livre 6 du Code de la Sécurité Intérieure,</h1>
-    <p class="subtitle">
-      En quelques secondes, évaluez la conformité de votre entreprise
-    </p>
-    <div class="cta">
-      <a class="btn primary" href="/docs">Explorer la documentation</a>
-      <a class="btn ghost" href="/docs#/%2Fanalyze/post_analyze__">Analyser un fichier</a>
-    </div>
+  <main>
+    <section class="hero">
+      <h1>Analyse de conformité Livre 6 du Code de la Sécurité Intérieure</h1>
+      <p>En quelques secondes, évaluez la conformité de votre entreprise de sécurité.</p>
 
-    <section class="cards">
-      <article class="card">
-        <h3 class="card-title">/analyze</h3>
-        <p class="card-text">Chargez un document, obtenez un rapport, exportez en PDF.</p>
-      </article>
-      <article class="card">
-        <h3 class="card-title">/rules</h3>
-        <p class="card-text">Consultez et gérez l’ensemble des règles d’analyse.</p>
-      </article>
-      <article class="card">
-        <h3 class="card-title">/healthz</h3>
-        <p class="card-text">Vérification d’état pour la supervision.</p>
-      </article>
+      <div class="cta">
+        <!-- CTA unique sous la phrase d’accroche -->
+        <a class="btn primary" href="/televerser">Télécharger les documents de l’entreprise</a>
+      </div>
+    </section>
+
+    <!-- Nomenclature des pièces (guidage) -->
+    <section class="wrap-narrow" style="margin-top: 12px;">
+      <h2>Nomenclature des pièces à téléverser</h2>
+      <ul>
+        <li>Autorisation d’exercer</li>
+        <li>Agrément dirigeant</li>
+        <li>Attestation d’assurance professionnelle</li>
+        <li>Extrait Kbis</li>
+        <li>Statuts de l’entreprise à jour</li>
+        <li>Déclarations sociales nominatives (DSN)</li>
+        <li>Attestation de vigilance URSSAF à jour</li>
+        <li>Relevés de comptes professionnels (6 mois)</li>
+        <li>Dernière liasse fiscale</li>
+        <li>Grand livre de comptes</li>
+        <li>Plannings des agents (6 mois)</li>
+        <li>Bulletins de paie des agents (6 mois)</li>
+        <li>Factures (6 mois)</li>
+        <li>Liste des sous-traitants</li>
+        <li>Attestations de vigilance URSSAF (sous-traitants)</li>
+        <li>Contrats de sous-traitance</li>
+        <li>Modèle carte professionnelle</li>
+        <li>Registre unique du personnel</li>
+        <li>Registre des contrôles internes</li>
+        <li>Justificatifs DPAE</li>
+        <li>Factures des sous-traitants</li>
+      </ul>
     </section>
   </main>
 
-  <footer class="wrap footer">
-    <span>© <span id="year"></span> CSI API</span>
-    <a class="footer-link" href="/docs">Documentation</a>
-  </footer>
-
-  <script>
-    // année dynamique
-    document.getElementById('year').textContent = new Date().getFullYear();
-  </script>
+  <footer class="wrap-narrow">© 2025 CSI API</footer>
 </body>
 </html>
-<a class="btn primary" href="/televerser">Téléverser les documents</a>
-<a class="btn primary" href="/televerser">Téléverser les documents</a>
-<section class="wrap" style="margin-top:32px;">
-  <h2>Nomenclature des pièces à téléverser</h2>
-  <ul>
-    <li>Autorisation d’exercer</li>
-    <li>Agrément dirigeant</li>
-    <li>Attestation d’assurance professionnelle</li>
-    <li>Extrait Kbis</li>
-    <li>Statuts de l’entreprise à jour</li>
-    <li>Déclarations sociales nominatives (DSN)</li>
-    <li>Attestation de vigilance URSSAF à jour</li>
-    <li>Relevés de comptes professionnels (6 mois)</li>
-    <li>Dernière liasse fiscale</li>
-    <li>Grand livre de comptes</li>
-    <li>Plannings des agents (6 mois)</li>
-    <li>Bulletins de paie des agents (6 mois)</li>
-    <li>Factures (6 mois)</li>
-    <li>Liste des sous-traitants</li>
-    <li>Attestations de vigilance URSSAF (sous-traitants)</li>
-    <li>Contrats de sous-traitance</li>
-    <li>Modèle carte professionnelle (entreprise)</li>
-    <li>Registre unique du personnel</li>
-    <li>Registre des contrôles internes</li>
-    <li>Justificatifs DPAE</li>
-    <li>Factures des sous-traitants</li>
-  </ul>
-  <p><a class="btn primary" href="/televerser">Téléverser les documents</a></p>
-</section>
