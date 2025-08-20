@@ -1,6 +1,8 @@
+# app/plannings/config.py
 from pydantic import BaseModel, Field
 
 class RuleSettings(BaseModel):
+    # Heures & repos
     max_daily_hours: float = Field(10.0)
     max_daily_hours_with_derog: float = Field(12.0)
     max_weekly_hours: float = Field(48.0)
@@ -19,4 +21,5 @@ class RuleSettings(BaseModel):
 class Settings(BaseModel):
     rules: RuleSettings = RuleSettings()
 
+# >>> IMPORTANT : on expose bien une instance globale
 SETTINGS = Settings()
