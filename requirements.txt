@@ -17,4 +17,4 @@ openpyxl
 reportlab
 python-dateutil
 python-multipart
-pip install -r requirements.txt
+
