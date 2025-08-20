@@ -44,3 +44,14 @@ app.include_router(planning_router)
 @app.get("/health")
 def root_health():
     return {"status": "ok", "service": "csi-api", "version": "0.1.0"}
+    from fastapi.responses import RedirectResponse, JSONResponse
+
+@app.get("/")
+def home():
+    # soit un message JSON simple :
+    return JSONResponse({"status": "ok", "service": "csi-api", "docs": "/docs"})
+    # ou si tu préfères rediriger vers Swagger directement :
+    # return RedirectResponse(url="/docs")
+git add app/main.py
+git commit -m "chore: add home route to avoid 404 on /"
+git push
