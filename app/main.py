@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.templating import Jinja2Templates
 from pydantic import BaseModel
 from .plannings.router import router as planning_router
+app.include_router(planning_router)
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Imports des routeurs EXISTANTS (relatifs car on est dans le package "app")
