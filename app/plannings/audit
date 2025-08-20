@@ -1,0 +1,463 @@
+
+import pandas as pd
+from .rules import build_daily, detect_alerts
+from .schemas import AnalysisResult, Summary
+
+def analyze(df: pd.DataFrame) -> AnalysisResult:
+    daily = build_daily(df)
+    alerts = detect_alerts(daily)
+    summary = Summary(
+        agents=daily["agent_id"].nunique(),
+        days=daily["work_day"].nunique(),
+        total_hours_effective=float(daily["hours_effective"].sum()),
+        total_hours_night=float(daily["hours_night"].sum()),
+        alerts_count=len(alerts),
+    )
+    per_agent = daily.groupby("agent_id").agg(
+        hours_effective=("hours_effective", "sum"),
+        hours_night=("hours_night", "sum"),
+        days=("work_day", "nunique")
+    ).reset_index()
+    by_agent = {
+        row["agent_id"]: {
+            "hours_effective": float(row["hours_effective"]),
+            "hours_night": float(row["hours_night"]),
+            "days": int(row["days"]),
+        }
+        for _, row in per_agent.iterrows()
+    }
+    return AnalysisResult(summary=summary, alerts=alerts, by_agent=by_agent)
+
+from pydantic import BaseModel, Field
+
+class RuleSettings(BaseModel):
+    # Heures & repos
+    max_daily_hours: float = Field(10.0, description="Plafond standard d'heures quotidiennes")
+    max_daily_hours_with_derog: float = Field(12.0, description="Plafond quotidien si dérogation validée")
+    max_weekly_hours: float = Field(48.0, description="Plafond hebdomadaire (semaine isolée)")
+    avg_weekly_hours_over_12_weeks: float = Field(44.0, description="Moyenne sur 12 semaines glissantes")
+    min_daily_rest_hours: float = Field(11.0, description="Repos quotidien minimal entre deux vacations")
+    min_weekly_rest_hours: float = Field(35.0, description="Repos hebdomadaire minimal")
+    min_break_minutes_after_6h: int = Field(20, description="Pause minimale si ≥ 6h de travail effectif")
+    night_start_hour: int = Field(21, description="Début plage nuit (heure)")
+    night_end_hour: int = Field(6, description="Fin plage nuit (heure)")
+    max_consecutive_work_days: int = Field(6, description="Nb max de jours consécutifs avant 2 jours de repos")
+    minor_min_daily_rest_hours: float = Field(12.0, description="Repos quotidien min pour mineurs")
+    minor_night_forbidden_start: int = Field(22, description="Début interdiction nuit mineurs")
+    minor_night_forbidden_end: int = Field(6, description="Fin interdiction nuit mineurs")
+    night_rest_comp_percent: float = Field(1.0, description="Repos compensateur (% par heure de nuit) indicatif")
+
+class Settings(BaseModel):
+    rules: RuleSettings = RuleSettings()
+
+# instance globale modifiable à chaud
+SETTINGS = Settings()
+
+from reportlab.lib.pagesizes import A4
+from reportlab.pdfgen import canvas
+from reportlab.lib.units import cm
+from reportlab.lib.utils import simpleSplit
+from typing import List, Dict, Any
+from .schemas import AnalysisResult
+import os, datetime
+
+def _wrap_text(text: str, width: float, font_name="Helvetica", font_size=10):
+    return simpleSplit(text, font_name, font_size, width)
+
+def export_pdf(result: AnalysisResult, out_path: str, title: str="Rapport d'audit — Plannings") -> str:
+    os.makedirs(os.path.dirname(out_path), exist_ok=True)
+    c = canvas.Canvas(out_path, pagesize=A4)
+    W, H = A4
+    margin = 2*cm
+    y = H - margin
+
+    c.setFont("Helvetica-Bold", 14)
+    c.drawString(margin, y, title)
+    c.setFont("Helvetica", 10)
+    c.drawRightString(W - margin, y, datetime.datetime.now().strftime("%Y-%m-%d %H:%M"))
+    y -= 1.2*cm
+
+    c.setFont("Helvetica-Bold", 12)
+    c.drawString(margin, y, "Synthèse"); y -= 0.6*cm
+    c.setFont("Helvetica", 10)
+    lines = [
+        f"Agents analysés : {result.summary.agents}",
+        f"Jours couverts  : {result.summary.days}",
+        f"Heures effectives totales : {result.summary.total_hours_effective:.2f} h",
+        f"Heures de nuit totales     : {result.summary.total_hours_night:.2f} h",
+        f"Nombre d'alertes : {result.summary.alerts_count}",
+    ]
+    for line in lines:
+        c.drawString(margin, y, line); y -= 0.5*cm
+    y -= 0.3*cm
+
+    c.setFont("Helvetica-Bold", 12)
+    c.drawString(margin, y, "Alertes"); y -= 0.6*cm
+    c.setFont("Helvetica", 10)
+
+    for idx, a in enumerate(result.alerts, start=1):
+        block = f"""{idx}. [{a.severity.upper()}] {a.rule_id} — Agent {a.agent_id} — Date: {a.date or '-'}\n{a.message}\nPreuves: {a.evidence}"""
+        for ln in _wrap_text(block, W - 2*margin):
+            if y < margin:
+                c.showPage(); y = H - margin; c.setFont("Helvetica", 10)
+            c.drawString(margin, y, ln); y -= 0.45*cm
+        y -= 0.2*cm
+
+    c.showPage()
+    c.save()
+    return out_path
+
+import io
+import pandas as pd
+
+REQUIRED_COLS = ["agent_id", "date", "start", "end"]
+OPTIONAL_COLS = [
+    "pause_min", "nom", "prenom", "site", "employer",
+    "has_derogation_daily_12h", "is_minor", "is_night_worker"
+]
+
+def load_schedule(file_bytes: bytes, filename: str) -> pd.DataFrame:
+    name = filename.lower()
+    if name.endswith(".csv"):
+        df = pd.read_csv(io.BytesIO(file_bytes))
+    elif name.endswith(".xlsx") or name.endswith(".xls"):
+        df = pd.read_excel(io.BytesIO(file_bytes))
+    else:
+        raise ValueError("Unsupported file format. Use CSV or Excel.")
+
+    df.columns = [c.strip().lower() for c in df.columns]
+
+    for col in REQUIRED_COLS:
+        if col not in df.columns:
+            raise ValueError(f"Missing required column: {col}")
+
+    for col in OPTIONAL_COLS:
+        if col not in df.columns:
+            df[col] = None
+
+    df["pause_min"] = df["pause_min"].fillna(0).astype(int)
+    for b in ["has_derogation_daily_12h", "is_minor", "is_night_worker"]:
+        df[b] = df[b].fillna(False).astype(bool)
+
+    for c in ["agent_id", "nom", "prenom", "site", "employer"]:
+        if c in df.columns:
+            df[c] = df[c].astype(str).str.strip()
+
+    return df[REQUIRED_COLS + OPTIONAL_COLS]
+
+from fastapi import APIRouter, UploadFile, File, HTTPException
+from fastapi.responses import JSONResponse, StreamingResponse
+import io, os, time, json
+from .config import SETTINGS, RuleSettings
+from .ingest import load_schedule
+from .analysis import analyze
+from .export_pdf import export_pdf
+
+router = APIRouter(prefix="", tags=["planning-audit"])
+
+@router.get("/planning/health")
+def health():
+    return {"status": "ok", "rules": SETTINGS.rules.dict()}
+
+@router.get("/planning/rules")
+def get_rules():
+    return SETTINGS.rules.dict()
+
+@router.put("/planning/rules")
+def update_rules(payload: dict):
+    try:
+        new_rules = RuleSettings(**{**SETTINGS.rules.dict(), **payload})
+        SETTINGS.rules = new_rules
+        return {"ok": True, "rules": new_rules.dict()}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@router.post("/planning/analyze")
+async def post_analyze(file: UploadFile = File(...)):
+    try:
+        content = await file.read()
+        df = load_schedule(content, file.filename)
+        result = analyze(df)
+        return JSONResponse(content=json.loads(result.model_dump_json()))
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@router.post("/planning/export/report")
+async def post_export_report(file: UploadFile = File(...)):
+    try:
+        content = await file.read()
+        df = load_schedule(content, file.filename)
+        result = analyze(df)
+        reports_dir = os.path.join(os.getcwd(), "reports")
+        os.makedirs(reports_dir, exist_ok=True)
+        out_path = os.path.join(reports_dir, f"rapport_audit_{int(time.time())}.pdf")
+        export_pdf(result, out_path)
+        with open(out_path, "rb") as f:
+            pdf_bytes = f.read()
+        return StreamingResponse(io.BytesIO(pdf_bytes), media_type="application/pdf")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+from __future__ import annotations
+import pandas as pd
+from typing import List, Dict, Any
+from datetime import datetime, timedelta, time
+from dateutil.parser import parse as dt_parse
+from .config import SETTINGS
+
+def _to_dt(date_str: str, t_str: str) -> datetime:
+    d = dt_parse(date_str).date()
+    ts = dt_parse(t_str).time()
+    return datetime.combine(d, ts)
+
+def compute_effective_hours(row) -> float:
+    start_dt = _to_dt(row["date"], row["start"])
+    end_dt = _to_dt(row["date"], row["end"])
+    if end_dt <= start_dt:
+        end_dt += timedelta(days=1)
+    duration_hours = (end_dt - start_dt).total_seconds() / 3600.0
+    pause = float(row.get("pause_min", 0) or 0) / 60.0
+    return max(duration_hours - pause, 0.0)
+
+def compute_night_hours(row) -> float:
+    rs = SETTINGS.rules
+    start_dt = _to_dt(row["date"], row["start"])
+    end_dt = _to_dt(row["date"], row["end"])
+    if end_dt <= start_dt:
+        end_dt += timedelta(days=1)
+
+    ns, ne = rs.night_start_hour, rs.night_end_hour
+    night1_start = datetime.combine(start_dt.date(), time(hour=ns))
+    night1_end = datetime.combine(start_dt.date(), time(23, 59, 59))
+    night2_start = datetime.combine(start_dt.date() + timedelta(days=1), time(0, 0, 0))
+    night2_end = datetime.combine(start_dt.date() + timedelta(days=1), time(hour=ne))
+
+    def overlap(a_start, a_end, b_start, b_end):
+        latest_start = max(a_start, b_start)
+        earliest_end = min(a_end, b_end)
+        delta = (earliest_end - latest_start).total_seconds()
+        return max(delta, 0)
+
+    o1 = overlap(start_dt, end_dt, night1_start, night1_end)
+    o2 = overlap(start_dt, end_dt, night2_start, night2_end)
+    return (o1 + o2) / 3600.0
+
+def build_daily(df: pd.DataFrame) -> pd.DataFrame:
+    d = df.copy()
+    d["hours_effective"] = d.apply(compute_effective_hours, axis=1)
+    d["hours_night"] = d.apply(compute_night_hours, axis=1)
+    d["work_day"] = pd.to_datetime(d["date"]).dt.date
+    d["worked_flag"] = (d["hours_effective"] > 0).astype(int)
+    return d
+
+def build_weekly(agent_daily: pd.DataFrame) -> pd.DataFrame:
+    wk = agent_daily.copy()
+    wk["iso_year"] = pd.to_datetime(wk["work_day"]).dt.isocalendar().year
+    wk["iso_week"] = pd.to_datetime(wk["work_day"]).dt.isocalendar().week
+    g = wk.groupby(["agent_id", "iso_year", "iso_week"], as_index=False).agg(
+        hours_effective_week=("hours_effective", "sum"),
+        days_worked=("worked_flag", "sum"),
+    )
+    return g
+
+def build_12w_rolling(weekly: pd.DataFrame) -> pd.DataFrame:
+    w = weekly.copy().sort_values(["agent_id", "iso_year", "iso_week"])
+    w["yearweek"] = w["iso_year"] * 100 + w["iso_week"]
+    out = []
+    for agent, grp in w.groupby("agent_id"):
+        grp = grp.sort_values("yearweek")
+        grp["avg12w"] = grp["hours_effective_week"].rolling(window=12, min_periods=1).mean()
+        out.append(grp)
+    return pd.concat(out, ignore_index=True) if out else w
+
+def detect_alerts(daily: pd.DataFrame) -> List[Dict[str, Any]]:
+    rs = SETTINGS.rules
+    alerts: List[Dict[str, Any]] = []
+
+    # A. Heures quotidiennes
+    dsum = daily.groupby(["agent_id", "work_day"], as_index=False).agg(
+        hours=("hours_effective", "sum"),
+        has_derogation=("has_derogation_daily_12h", "max")
+    )
+    for _, r in dsum.iterrows():
+        limit = rs.max_daily_hours_with_derog if bool(r["has_derogation"]) else rs.max_daily_hours
+        if r["hours"] > limit + 1e-6:
+            alerts.append({
+                "rule_id": "DAILY_MAX",
+                "agent_id": r["agent_id"],
+                "date": r["work_day"].isoformat(),
+                "severity": "error",
+                "message": f"Heures quotidiennes {r['hours']:.2f} > {limit}",
+                "evidence": {"hours": float(r["hours"]), "limit": float(limit)}
+            })
+
+    # B. 48 h semaine isolée
+    weekly = build_weekly(daily)
+    for _, r in weekly.iterrows():
+        if r["hours_effective_week"] > rs.max_weekly_hours + 1e-6:
+            alerts.append({
+                "rule_id": "WEEKLY_48H",
+                "agent_id": r["agent_id"],
+                "date": f"ISO {int(r['iso_year'])}-W{int(r['iso_week'])}",
+                "severity": "error",
+                "message": f"Heures hebdomadaires {r['hours_effective_week']:.2f} > {rs.max_weekly_hours}",
+                "evidence": {"hours_week": float(r["hours_effective_week"]), "limit": float(rs.max_weekly_hours)}
+            })
+
+    # C. Moyenne 44 h / 12 semaines
+    rolling = build_12w_rolling(weekly)
+    for _, r in rolling.iterrows():
+        if r["avg12w"] > rs.avg_weekly_hours_over_12_weeks + 1e-6:
+            alerts.append({
+                "rule_id": "AVG_12W_44H",
+                "agent_id": r["agent_id"],
+                "date": f"ISO {int(r['iso_year'])}-W{int(r['iso_week'])}",
+                "severity": "error",
+                "message": f"Moyenne 12 sem. {r['avg12w']:.2f} > {rs.avg_weekly_hours_over_12_weeks}",
+                "evidence": {"avg12w": float(r["avg12w"]), "limit": float(rs.avg_weekly_hours_over_12_weeks)}
+            })
+
+    # D. Repos quotidien 11 h
+    for agent, grp in daily.sort_values(["agent_id", "work_day", "start"]).groupby("agent_id"):
+        rows = grp.to_dict("records")
+        prev_end = None
+        for row in rows:
+            start_dt = dt_parse(f"{row['date']} {row['start']}")
+            end_dt = dt_parse(f"{row['date']} {row['end']}")
+            if end_dt <= start_dt:
+                end_dt += pd.Timedelta(days=1)
+            if prev_end is not None:
+                rest_h = (start_dt - prev_end).total_seconds() / 3600.0
+                min_rest = rs.min_daily_rest_hours
+                if bool(row.get("is_minor", False)):
+                    min_rest = max(min_rest, rs.minor_min_daily_rest_hours)
+                if rest_h < min_rest - 1e-6:
+                    alerts.append({
+                        "rule_id": "DAILY_REST_11H",
+                        "agent_id": agent,
+                        "date": row["date"],
+                        "severity": "error",
+                        "message": f"Repos quotidien {rest_h:.2f} h < {min_rest} h",
+                        "evidence": {"rest_hours": float(rest_h), "limit": float(min_rest)}
+                    })
+            prev_end = end_dt
+
+    # E. Repos hebdo 35 h (approx. détection d'un gap >= 35 h)
+    by_agent_date = daily.groupby(["agent_id", "work_day"], as_index=False).agg(
+        end_last=("end", "last"),
+        start_first=("start", "first")
+    ).sort_values(["agent_id", "work_day"])
+    for agent, grp in by_agent_date.groupby("agent_id"):
+        grp = grp.sort_values("work_day")
+        prev_end_dt = None
+        had_35h = False
+        for _, row in grp.iterrows():
+            end_dt = dt_parse(f"{row['work_day']} {row['end_last']}")
+            start_dt = dt_parse(f"{row['work_day']} {row['start_first']}")
+            if end_dt <= start_dt:
+                end_dt += pd.Timedelta(days=1)
+            if prev_end_dt is not None:
+                gap_h = (start_dt - prev_end_dt).total_seconds() / 3600.0
+                if gap_h >= SETTINGS.rules.min_weekly_rest_hours - 1e-6:
+                    had_35h = True
+            prev_end_dt = end_dt
+        if not had_35h and len(grp) >= 6:
+            alerts.append({
+                "rule_id": "WEEKLY_REST_35H",
+                "agent_id": agent,
+                "date": None,
+                "severity": "warning",
+                "message": "Repos hebdomadaire ≥ 35 h non trouvé sur la période",
+                "evidence": {}
+            })
+
+    # F. Pause >= 20 min si journée >= 6 h
+    for _, r in dsum.iterrows():
+        if r["hours"] >= 6.0:
+            pauses = daily[(daily["agent_id"] == r["agent_id"]) & (daily["work_day"] == r["work_day"])].get("pause_min", 0)
+            pause_total = float(pauses.sum()) if hasattr(pauses, "sum") else float(pauses or 0)
+            if pause_total < SETTINGS.rules.min_break_minutes_after_6h - 1e-6:
+                alerts.append({
+                    "rule_id": "BREAK_20M",
+                    "agent_id": r["agent_id"],
+                    "date": r["work_day"].isoformat(),
+                    "severity": "warning",
+                    "message": f"Pause {pause_total:.0f} min < {SETTINGS.rules.min_break_minutes_after_6h} min (≥ 6 h)",
+                    "evidence": {"pause_min": float(pause_total), "limit_min": float(SETTINGS.rules.min_break_minutes_after_6h)}
+                })
+
+    # G. Mineurs : interdiction nuit 22h–6h
+    minors = daily[daily.get("is_minor", False) == True] if "is_minor" in daily.columns else pd.DataFrame()
+    if not minors.empty:
+        for _, row in minors.iterrows():
+            start_dt = dt_parse(f"{row['date']} {row['start']}")
+            end_dt = dt_parse(f"{row['date']} {row['end']}")
+            if end_dt <= start_dt:
+                end_dt += pd.Timedelta(days=1)
+            forbidden_start = start_dt.replace(hour=SETTINGS.rules.minor_night_forbidden_start, minute=0, second=0, microsecond=0)
+            forbidden_end = (start_dt + pd.Timedelta(days=1)).replace(hour=SETTINGS.rules.minor_night_forbidden_end, minute=0, second=0, microsecond=0)
+            if (min(end_dt, forbidden_end) - max(start_dt, forbidden_start)).total_seconds() > 0:
+                alerts.append({
+                    "rule_id": "MINOR_NIGHT_FORBIDDEN",
+                    "agent_id": row["agent_id"],
+                    "date": row["date"],
+                    "severity": "error",
+                    "message": "Plage de nuit interdite détectée pour mineur (22h–6h)",
+                    "evidence": {"start": row["start"], "end": row["end"]}
+                })
+
+    # H. 2 jours de repos après 6 jours consécutifs
+    day_flags = daily.groupby(["agent_id", "work_day"], as_index=False)["worked_flag"].max().sort_values(["agent_id", "work_day"])
+    for agent, grp in day_flags.groupby("agent_id"):
+        days = grp["work_day"].tolist()
+        streak = 0
+        last_day = None
+        for d in days:
+            if last_day is None or (pd.to_datetime(d) - pd.to_datetime(last_day)).days == 1:
+                streak += 1
+            else:
+                if streak >= SETTINGS.rules.max_consecutive_work_days:
+                    alerts.append({
+                        "rule_id": "TWO_DAYS_REST_AFTER_SIX",
+                        "agent_id": agent,
+                        "date": None,
+                        "severity": "warning",
+                        "message": f"{streak} jours consécutifs travaillés — vérifier 2 jours de repos",
+                        "evidence": {"streak_days": int(streak)}
+                    })
+                streak = 1
+            last_day = d
+        if streak >= SETTINGS.rules.max_consecutive_work_days:
+            alerts.append({
+                "rule_id": "TWO_DAYS_REST_AFTER_SIX",
+                "agent_id": agent,
+                "date": None,
+                "severity": "warning",
+                "message": f"{streak} jours consécutifs travaillés — vérifier 2 jours de repos",
+                "evidence": {"streak_days": int(streak)}
+            })
+
+    return alerts
+
+from typing import List, Optional, Dict, Any
+from pydantic import BaseModel
+
+class Alert(BaseModel):
+    rule_id: str
+    agent_id: str
+    date: Optional[str] = None
+    severity: str = "warning"  # 'info' | 'warning' | 'error'
+    message: str
+    evidence: Dict[str, Any] = {}
+
+class Summary(BaseModel):
+    agents: int
+    days: int
+    total_hours_effective: float
+    total_hours_night: float
+    alerts_count: int
+
+class AnalysisResult(BaseModel):
+    summary: Summary
+    alerts: List[Alert]
+    by_agent: Dict[str, Dict[str, Any]]
