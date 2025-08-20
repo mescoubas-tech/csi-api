@@ -1,20 +1,11 @@
-from fastapi.responses import RedirectResponse, JSONResponse
-
-@app.get("/")
-def home():
-    # soit un message simple :
-    return JSONResponse({"status": "ok", "service": "csi-api", "docs": "/docs"})
-    # ou, si tu préfères rediriger directement vers la doc :
-    # return RedirectResponse(url="/docs")
 # app/main.py
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse, RedirectResponse
 
-# 👉 importe le router APRÈS les imports FastAPI
+# ⚠️ importe les routers APRÈS les imports FastAPI
 from .plannings.router import router as planning_router
 
-
-# --- création de l'application FastAPI (doit être avant tout app.include_router) ---
 app = FastAPI(
     title="CSI API",
     version="0.1.0",
@@ -22,36 +13,30 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
-# (optionnel) CORS permissif ; ajuste si besoin
+# CORS (ouvre large par défaut ; restreins si tu as des domaines précis)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],          # ← remplace par ta liste de domaines si nécessaire
+    allow_origins=["*"],  # ← remplace par ["https://ton-front.example"] si nécessaire
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# --- inclusion des routers ---
-# ton router "planning-audit"
-app.include_router(planning_router)
+# Routes de base (pour éviter 404 sur /)
+@app.get("/")
+def home():
+    # renvoie un message simple + lien vers /docs
+    return JSONResponse({"status": "ok", "service": "csi-api", "docs": "/docs"})
 
-# si tu as d'autres routers existants, ajoute-les ici :
-# from .autre_module.router import router as autre_router
-# app.include_router(autre_router)
-
-
-# --- endpoints de base (facultatif) ---
 @app.get("/health")
 def root_health():
     return {"status": "ok", "service": "csi-api", "version": "0.1.0"}
-    from fastapi.responses import RedirectResponse, JSONResponse
 
-@app.get("/")
-def home():
-    # soit un message JSON simple :
-    return JSONResponse({"status": "ok", "service": "csi-api", "docs": "/docs"})
-    # ou si tu préfères rediriger vers Swagger directement :
-    # return RedirectResponse(url="/docs")
-git add app/main.py
-git commit -m "chore: add home route to avoid 404 on /"
-git push
+# Erreurs homogènes
+@app.exception_handler(Exception)
+async def unhandled_error_handler(_req: Request, exc: Exception):
+    # évite de crasher en 500 sans JSON
+    return JSONResponse(status_code=500, content={"detail": str(exc)})
+
+# 👉 inclure les routers APRÈS la création de `app`
+app.include_router(planning_router)
