@@ -3,6 +3,11 @@ from fastapi import APIRouter, UploadFile, File, HTTPException
 from fastapi.responses import JSONResponse, StreamingResponse
 import io, os, time, json
 
+from app.plannings.config import SETTINGS, RuleSettings
+from app.plannings.ingest import load_schedule
+from app.plannings.analysis import analyze
+from app.plannings.export_pdf import export_pdf
+
 ==> Exited with status 1
      ==> Common ways to troubleshoot your deploy: https://render.com/docs/troubleshooting-deploys
 ==> Running 'uvicorn app.main:app --host 0.0.0.0 --port $PORT'
