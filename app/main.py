@@ -1,3 +1,11 @@
+from fastapi.responses import RedirectResponse, JSONResponse
+
+@app.get("/")
+def home():
+    # soit un message simple :
+    return JSONResponse({"status": "ok", "service": "csi-api", "docs": "/docs"})
+    # ou, si tu préfères rediriger directement vers la doc :
+    # return RedirectResponse(url="/docs")
 # app/main.py
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
