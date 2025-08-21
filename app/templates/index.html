@@ -1,191 +1,146 @@
-<!-- app/templates/index.html -->
 <!doctype html>
 <html lang="fr">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Analyse de conformité CNAPS — Téléversement</title>
-  <link rel="stylesheet" href="/static/cnaps.css">
+  <title>CSI — Analyse de conformité</title>
+  <link rel="stylesheet" href="/static/minimal.css">
 </head>
 <body>
-  <header class="container head">
-    <div class="crumbs">
-      <a href="/">Accueil</a>
-      <span>·</span>
-      <a href="/docs" target="_blank">Docs</a>
+  <header class="site-header">
+    <div class="container bar">
+      <div class="brand">
+        <div class="dot"></div>
+        <span>CSI</span>
+      </div>
+      <nav class="nav">
+        <a href="/docs" target="_blank">Docs</a>
+        <a href="/redoc" target="_blank">ReDoc</a>
+      </nav>
     </div>
-    <h1>Analyse de conformité CNAPS — Téléversement</h1>
   </header>
 
-  <main class="container grid">
-    <section class="left">
-      <div class="inputs">
-        <label class="field">
-          <span>Nom de l’entreprise</span>
-          <input id="company" type="text" placeholder="Nom de l’entreprise" />
-        </label>
-        <label class="field">
-          <span>Site internet (optionnel)</span>
-          <input id="website" type="url" placeholder="https://…" />
-        </label>
+  <main>
+    <section class="hero container">
+      <h1>Analyse de conformité,<br />simple et élégante.</h1>
+      <p class="lede">
+        Téléversez vos documents CNAPS. Nous détectons les écarts majeurs (durées, repos, hebdo, etc.)
+        et générons un rapport clair.
+      </p>
+      <div class="cta">
+        <a class="btn" href="/docs" target="_blank">Explorer la documentation</a>
+        <button class="btn ghost" id="scrollToUpload">Analyser un fichier</button>
       </div>
-
-      <div class="tiles">
-        <!-- Colonne 1 -->
-        <div class="tile" data-key="aut_exercer">
-          <h3>Autorisation d’exercer <span class="ok" hidden>✓</span></h3>
-          <p class="meta">PDF/DOCX</p>
-          <input type="file" accept=".pdf,.doc,.docx" />
-          <p class="filename" title=""></p>
-        </div>
-
-        <div class="tile" data-key="att_assurance">
-          <h3>Attestation d’assurance professionnelle</h3>
-          <p class="meta">PDF</p>
-          <input type="file" accept=".pdf" />
-          <p class="filename"></p>
-        </div>
-
-        <div class="tile" data-key="statuts">
-          <h3>Statuts de l’entreprise à jour</h3>
-          <p class="meta">PDF</p>
-          <input type="file" accept=".pdf" />
-          <p class="filename"></p>
-        </div>
-
-        <div class="tile" data-key="att_vigilance_urssaf">
-          <h3>Attestation de vigilance URSSAF</h3>
-          <p class="meta">PDF</p>
-          <input type="file" accept=".pdf" />
-          <p class="filename"></p>
-        </div>
-
-        <div class="tile" data-key="derniere_liasse">
-          <h3>Dernière liasse fiscale</h3>
-          <p class="meta">PDF/ZIP</p>
-          <input type="file" accept=".pdf,.zip" />
-          <p class="filename"></p>
-        </div>
-
-        <!-- Colonne 2 -->
-        <div class="tile" data-key="agrement_dirigeant">
-          <h3>Agrément dirigeant <span class="ok" hidden>✓</span></h3>
-          <p class="meta">PDF/DOCX</p>
-          <input type="file" accept=".pdf,.doc,.docx" />
-          <p class="filename"></p>
-        </div>
-
-        <div class="tile" data-key="kbis">
-          <h3>Extrait Kbis</h3>
-          <p class="meta">PDF</p>
-          <input type="file" accept=".pdf" />
-          <p class="filename"></p>
-        </div>
-
-        <div class="tile" data-key="dsn">
-          <h3>Déclarations sociales nominatives (DSN)</h3>
-          <p class="meta">ZIP/PDF</p>
-          <input type="file" accept=".zip,.pdf" />
-          <p class="filename"></p>
-        </div>
-
-        <div class="tile" data-key="releves_comptes">
-          <h3>Relevés de comptes (6 mois)</h3>
-          <p class="meta">PDF/CSV</p>
-          <input type="file" accept=".pdf,.csv" />
-          <p class="filename"></p>
-        </div>
-
-        <div class="tile" data-key="grand_livre">
-          <h3>Grand livre de comptes</h3>
-          <p class="meta">PDF/CSV/XLSX</p>
-          <input type="file" accept=".pdf,.csv,.xlsx" />
-          <p class="filename"></p>
-        </div>
-
-        <!-- Ligne plannings (lien avec ton module existant) -->
-        <div class="tile wide" data-key="plannings">
-          <h3>Plannings des agents (6 mois)</h3>
-          <p class="meta">PDF/CSV/XLSX</p>
-          <input id="planningFile" type="file" accept=".pdf,.csv,.xlsx" />
-          <div class="row">
-            <button id="analyze" class="btn">Analyser</button>
-            <button id="export" class="btn outline">Exporter rapport PDF</button>
-          </div>
-          <pre id="planningOut" class="out" hidden></pre>
-        </div>
-      </div>
-
-      <p class="muted small">Taille max : <strong>25 Mo</strong> par fichier.</p>
     </section>
 
-    <aside class="right">
-      <h2>Nomenclature des pièces</h2>
-      <ul class="bullets">
-        <li>Autorisation d’exercer</li>
-        <li>Agrément dirigeant</li>
-        <li>Attestation d’assurance professionnelle</li>
-        <li>Extrait Kbis</li>
-        <li>Statuts de l’entreprise à jour</li>
-        <li>Déclarations sociales nominatives (DSN)</li>
-        <li>Attestation de vigilance URSSAF à jour</li>
-        <li>Relevés de comptes professionnels (6 mois)</li>
-        <li>Dernière liasse fiscale</li>
-        <li>Grand livre de comptes</li>
-        <li>Plannings des agents (6 mois)</li>
-        <li>Bulletins de paie des agents (6 mois)</li>
-        <li>Factures (6 mois)</li>
-        <li>Liste des sous-traitants</li>
-        <li>Attestations de vigilance URSSAF (sous-traitants)</li>
-        <li>Contrats de sous-traitance</li>
-        <li>Modèle carte professionnelle (entreprise)</li>
-        <li>Registre unique du personnel</li>
-        <li>Registre des contrôles internes</li>
-        <li>Justificatifs DPAE</li>
-        <li>Factures des sous-traitants</li>
-      </ul>
-    </aside>
+    <section class="panel container" id="upload">
+      <h2>Plannings des agents</h2>
+      <p class="muted">PDF numérique, CSV ou Excel. Taille max 25&nbsp;Mo.</p>
+
+      <div class="uploader" id="drop">
+        <input id="file" type="file" accept=".pdf,.csv,.xlsx,.xls" />
+        <div class="hint">
+          <div class="icon">⬆︎</div>
+          <div>
+            <strong>Glissez-déposez</strong> votre fichier ici<br />
+            ou <span class="underline">cliquez pour parcourir</span>.
+          </div>
+        </div>
+        <div class="filename" id="filename" hidden></div>
+      </div>
+
+      <div class="actions">
+        <button class="btn" id="analyze">Analyser</button>
+        <button class="btn outline" id="export">Exporter le rapport PDF</button>
+      </div>
+
+      <pre id="output" class="output" hidden></pre>
+    </section>
+
+    <section class="features container">
+      <div class="card">
+        <h3>/planning/analyze</h3>
+        <p>Chargez un planning et obtenez un diagnostic instantané.</p>
+      </div>
+      <div class="card">
+        <h3>/planning/export/report</h3>
+        <p>Générez un rapport PDF propre à partager.</p>
+      </div>
+      <div class="card">
+        <h3>API first</h3>
+        <p>Tout est accessible par API, la page n’est qu’un surcouche.</p>
+      </div>
+    </section>
   </main>
 
+  <footer class="site-footer">
+    <div class="container foot">
+      <span class="muted">© <span id="year"></span> CSI</span>
+      <span class="muted">Statut : <strong id="health">—</strong></span>
+    </div>
+  </footer>
+
   <script>
-    // ✓ sur chaque tuile quand un fichier est choisi + affichage du nom
-    document.querySelectorAll('.tile input[type="file"]').forEach(inp => {
-      inp.addEventListener('change', () => {
-        const tile = inp.closest('.tile');
-        const ok = tile.querySelector('.ok');
-        const fn = tile.querySelector('.filename');
-        const f = inp.files && inp.files[0];
-        if (f) {
-          if (ok) ok.hidden = false;
-          if (fn) { fn.textContent = f.name; fn.title = f.name; }
-        } else {
-          if (ok) ok.hidden = true;
-          if (fn) fn.textContent = '';
-        }
-      });
+    const el = (id) => document.getElementById(id);
+    const fileInput = el('file');
+    const fileName = el('filename');
+    const out = el('output');
+
+    // smooth scroll to uploader
+    el('scrollToUpload').addEventListener('click', () =>
+      document.getElementById('upload').scrollIntoView({ behavior: 'smooth' })
+    );
+
+    // header status
+    (async () => {
+      try {
+        const r = await fetch('/planning/health');
+        const j = await r.json();
+        el('health').textContent = j?.status === 'ok' ? 'en ligne' : 'indisponible';
+      } catch {
+        el('health').textContent = 'indisponible';
+      }
+      el('year').textContent = new Date().getFullYear();
+    })();
+
+    // drag & drop
+    const drop = document.getElementById('drop');
+    ['dragenter','dragover'].forEach(evt =>
+      drop.addEventListener(evt, e => { e.preventDefault(); drop.classList.add('hover'); })
+    );
+    ['dragleave','drop'].forEach(evt =>
+      drop.addEventListener(evt, e => { e.preventDefault(); drop.classList.remove('hover'); })
+    );
+    drop.addEventListener('drop', e => {
+      const f = e.dataTransfer.files?.[0];
+      if (f) { fileInput.files = e.dataTransfer.files; showName(f.name); }
     });
+    drop.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', () => {
+      const f = fileInput.files?.[0];
+      if (f) showName(f.name);
+    });
+    function showName(name) { fileName.hidden = false; fileName.textContent = name; }
 
-    // Intégration avec ton module “planning” existant
-    const planningFile = document.getElementById('planningFile');
-    const out = document.getElementById('planningOut');
-
-    async function analyzePlanning() {
-      const f = planningFile.files[0];
-      if (!f) return alert("Choisissez un fichier planning.");
-      out.hidden = false; out.textContent = "Analyse en cours…";
+    // analyze
+    el('analyze').addEventListener('click', async () => {
+      const f = fileInput.files?.[0];
+      if (!f) return alert('Choisissez un fichier.');
+      out.hidden = false; out.textContent = 'Analyse en cours…';
       const form = new FormData(); form.append('file', f);
       try {
         const r = await fetch('/planning/analyze', { method: 'POST', body: form });
         const t = await r.text();
         try { out.textContent = JSON.stringify(JSON.parse(t), null, 2); }
         catch { out.textContent = t; }
-      } catch(e) { out.textContent = 'Erreur: ' + e.message; }
-    }
+      } catch (e) { out.textContent = 'Erreur: ' + e.message; }
+    });
 
-    async function exportPlanningPdf() {
-      const f = planningFile.files[0];
-      if (!f) return alert("Choisissez un fichier planning.");
-      out.hidden = false; out.textContent = "Génération du rapport…";
+    // export
+    el('export').addEventListener('click', async () => {
+      const f = fileInput.files?.[0];
+      if (!f) return alert('Choisissez un fichier.');
+      out.hidden = false; out.textContent = 'Génération du rapport…';
       const form = new FormData(); form.append('file', f);
       try {
         const r = await fetch('/planning/export/report', { method: 'POST', body: form });
@@ -193,15 +148,10 @@
         const blob = await r.blob();
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
-        a.href = url; a.download = 'rapport_audit_plannings.pdf';
-        a.click();
-        out.textContent = "Rapport téléchargé.";
-      } catch(e) { out.textContent = 'Erreur: ' + e.message; }
-    }
-
-    document.getElementById('analyze').addEventListener('click', analyzePlanning);
-    document.getElementById('export').addEventListener('click', exportPlanningPdf);
+        a.href = url; a.download = 'rapport_audit_plannings.pdf'; a.click();
+        out.textContent = 'Rapport téléchargé.';
+      } catch (e) { out.textContent = 'Erreur: ' + e.message; }
+    });
   </script>
 </body>
 </html>
-    
