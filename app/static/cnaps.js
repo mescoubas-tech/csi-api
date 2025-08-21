@@ -3,6 +3,16 @@ const $  = (sel, root=document) => root.querySelector(sel);
 const $$ = (sel, root=document) => Array.from(root.querySelectorAll(sel));
 
 document.addEventListener("DOMContentLoaded", () => {
+    // Ajoute .jpeg et .jpg à tous les inputs de fichier
+  $$('input[type="file"]').forEach(input => {
+    const current = (input.getAttribute('accept') || '').trim();
+    const extra = '.jpeg,.jpg';
+    if (!current) {
+      input.setAttribute('accept', extra);
+    } else if (!current.includes('.jpeg') && !current.includes('.jpg')) {
+      input.setAttribute('accept', current + ',' + extra);
+    }
+  });
   $("#year").textContent = new Date().getFullYear();
 
   // Mapping "clé tuile" -> libellé bouton + endpoints (si dispo)
