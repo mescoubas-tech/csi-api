@@ -17,4 +17,5 @@ openpyxl
 reportlab
 python-dateutil
 python-multipart
-
+pytesseract
+pillow
