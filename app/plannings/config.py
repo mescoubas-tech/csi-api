@@ -1,23 +1,34 @@
-# app/plannings/config.py
+from __future__ import annotations
+from datetime import time
+from pydantic_settings import BaseSettings
 from pydantic import BaseModel, Field
 
-class RuleSettings(BaseModel):
-    max_daily_hours: float = Field(10.0)
-    max_daily_hours_with_derog: float = Field(12.0)
-    max_weekly_hours: float = Field(48.0)
-    avg_weekly_hours_over_12_weeks: float = Field(44.0)
-    min_daily_rest_hours: float = Field(11.0)
-    min_weekly_rest_hours: float = Field(35.0)
-    min_break_minutes_after_6h: int = Field(20)
-    night_start_hour: int = Field(21)
-    night_end_hour: int = Field(6)
-    max_consecutive_work_days: int = Field(6)
-    minor_min_daily_rest_hours: float = Field(12.0)
-    minor_night_forbidden_start: int = Field(22)
-    minor_night_forbidden_end: int = Field(6)
-    night_rest_comp_percent: float = Field(1.0)
 
-class Settings(BaseModel):
-    rules: RuleSettings = RuleSettings()
+class RuleSettings(BaseModel):
+    # Seuils légaux courants (France) — ajuste si besoin
+    max_daily_hours: float = Field(10.0, description="Durée max/jour (heures)")
+    max_weekly_hours: float = Field(48.0, description="Durée max/semaine (heures)")
+    max_avg_week_hours_12w: float = Field(44.0, description="Moyenne 12 semaines glissantes")
+    min_daily_rest_hours: float = Field(11.0, description="Repos quotidien minimum")
+    min_weekly_rest_hours: float = Field(35.0, description="Repos hebdomadaire minimum")
+    max_consecutive_days: int = Field(6, description="Jours consécutifs max")
+    min_break_after_6h_min: float = Field(0.5, description="Pause min (h) si poste ≥ 6h")
+    # Paramètres activité
+    night_start: time = time(21, 0)
+    night_end: time = time(6, 0)
+    allow_sunday: bool = True  # à adapter selon convention/accord
+
+    # Formats
+    date_formats: list[str] = [
+        "%Y-%m-%d",
+        "%d/%m/%Y",
+        "%d-%m-%Y",
+    ]
+    time_separators: tuple[str, ...] = (":", "h")
+
+
+class Settings(BaseSettings):
+    RULES: RuleSettings = RuleSettings()
+
 
 SETTINGS = Settings()
