@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Analyse de conformité CNAPS — Téléversement</title>
+  <link rel="stylesheet" href="/static/cnaps.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="wrap">
+      <nav class="crumbs"><a href="/">Accueil</a> · <a href="/docs" target="_blank">Docs</a></nav>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <h1>Analyse de conformité CNAPS — Téléversement</h1>
+
+    <div class="grid">
+      <!-- Colonne gauche : Uploads -->
+      <section>
+        <div class="inputs">
+          <input id="company" class="text" placeholder="Nom de l'entreprise" />
+          <input id="site" class="text" placeholder="Site internet (optionnel)" />
+        </div>
+
+        <div class="tiles">
+
+          <!-- AUTORISATION D'EXERCER -->
+          <div class="tile" data-key="aut">
+            <div class="tile-head">
+              <h3>Autorisation d’exercer <span class="ok" hidden>✔</span></h3>
+              <small>PDF/DOCX</small>
+            </div>
+            <input type="file" accept=".pdf,.doc,.docx" />
+            <div class="file-name"></div>
+          </div>
+
+          <!-- AGREMENT DIRIGEANT -->
+          <div class="tile" data-key="agd">
+            <div class="tile-head">
+              <h3>Agrément dirigeant <span class="ok" hidden>✔</span></h3>
+              <small>PDF/DOCX</small>
+            </div>
+            <input type="file" accept=".pdf,.doc,.docx" />
+            <div class="file-name"></div>
+          </div>
+
+          <!-- ATTESTATION ASSURANCE PRO -->
+          <div class="tile" data-key="aap">
+            <div class="tile-head">
+              <h3>Attestation d’assurance professionnelle</h3>
+              <small>PDF</small>
+            </div>
+            <input type="file" accept=".pdf" />
+            <div class="file-name"></div>
+          </div>
+
+          <!-- EXTRACT KBIS -->
+          <div class="tile" data-key="kbis">
+            <div class="tile-head">
+              <h3>Extrait Kbis</h3>
+              <small>PDF</small>
+            </div>
+            <input type="file" accept=".pdf" />
+            <div class="file-name"></div>
+          </div>
+
+          <!-- DSN -->
+          <div class="tile" data-key="dsn">
+            <div class="tile-head">
+              <h3>Déclarations sociales nominatives (DSN)</h3>
+              <small>ZIP/PDF</small>
+            </div>
+            <input type="file" accept=".zip,.pdf" />
+            <div class="file-name"></div>
+          </div>
+
+          <!-- RELEVES DE COMPTES -->
+          <div class="tile" data-key="releves">
+            <div class="tile-head">
+              <h3>Relevés de comptes (6 mois)</h3>
+              <small>PDF/CSV</small>
+            </div>
+            <input type="file" accept=".pdf,.csv" multiple />
+            <div class="file-name"></div>
+          </div>
+
+          <!-- GRAND LIVRE -->
+          <div class="tile" data-key="gl">
+            <div class="tile-head">
+              <h3>Grand livre de comptes</h3>
+              <small>PDF/CSV/XLSX</small>
+            </div>
+            <input type="file" accept=".pdf,.csv,.xlsx,.xls" />
+            <div class="file-name"></div>
+          </div>
+
+          <!-- PLANNINGS (le seul analysé côté backend pour l’instant) -->
+          <div class="tile accent" data-key="planning">
+            <div class="tile-head">
+              <h3>Plannings des agents (6 mois) <span class="ok" hidden>✔</span></h3>
+              <small>PDF/CSV/XLSX</small>
+            </div>
+            <input type="file" accept=".pdf,.csv,.xlsx,.xls" />
+            <div class="file-name"></div>
+          </div>
+
+          <!-- BULLETINS DE PAIE -->
+          <div class="tile" data-key="paie">
+            <div class="tile-head">
+              <h3>Bulletins de paie des agents (6 mois)</h3>
+              <small>PDF</small>
+            </div>
+            <input type="file" accept=".pdf" multiple />
+            <div class="file-name"></div>
+          </div>
+
+          <!-- FACTURES -->
+          <div class="tile" data-key="factures">
+            <div class="tile-head">
+              <h3>Factures (6 mois)</h3>
+              <small>PDF</small>
+            </div>
+            <input type="file" accept=".pdf" multiple />
+            <div class="file-name"></div>
+          </div>
+
+          <!-- etc. (tu peux dupliquer) -->
+
+        </div>
+
+        <div class="actions">
+          <button id="btnAnalyze" class="btn">Analyser les plannings</button>
+          <button id="btnExport" class="btn ghost">Exporter le rapport PDF</button>
+        </div>
+
+        <pre id="output" class="output" hidden></pre>
+      </section>
+
+      <!-- Colonne droite : Nomenclature -->
+      <aside class="aside">
+        <h2>Nomenclature des pièces</h2>
+        <ul class="list">
+          <li>Autorisation d’exercer</li>
+          <li>Agrément dirigeant</li>
+          <li>Attestation d’assurance professionnelle</li>
+          <li>Extrait Kbis</li>
+          <li>Statuts de l’entreprise à jour</li>
+          <li>Déclarations sociales nominatives (DSN)</li>
+          <li>Attestation de vigilance URSSAF à jour</li>
+          <li>Relevés de comptes professionnels (6 mois)</li>
+          <li>Dernière liasse fiscale</li>
+          <li>Grand livre de comptes</li>
+          <li><strong>Plannings des agents (6 mois)</strong></li>
+          <li>Bulletins de paie des agents (6 mois)</li>
+          <li>Factures (6 mois)</li>
+          <li>Liste des sous-traitants</li>
+          <li>Attestations de vigilance URSSAF (sous-traitants)</li>
+          <li>Contrats de sous-traitance</li>
+          <li>Modèle carte professionnelle (entreprise)</li>
+          <li>Registre unique du personnel</li>
+          <li>Registre des contrôles internes</li>
+          <li>Justificatifs DPAE</li>
+          <li>Factures des sous-traitants</li>
+        </ul>
+        <p class="muted">Taille max : 25 Mo par fichier.</p>
+      </aside>
+    </div>
+  </main>
+
+  <footer class="foot wrap">
+    <span>© <span id="year"></span> CSI API</span>
+    <a class="link" href="/docs" target="_blank">Documentation</a>
+  </footer>
+
+  <script src="/static/cnaps.js"></script>
+</body>
+</html>
