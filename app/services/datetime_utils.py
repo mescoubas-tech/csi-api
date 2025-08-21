@@ -3,6 +3,7 @@ from __future__ import annotations
 import pandas as pd
 from typing import Optional
 
+# Accepte "08:30 - 16:00", "08:30–16:00", "08:30 à 16:00"
 TIME_RANGE_REGEX = r'(?P<start>\d{1,2}:\d{2})\s*[-–à]\s*(?P<end>\d{1,2}:\d{2})'
 
 def ensure_start_end_columns(
@@ -19,20 +20,18 @@ def ensure_start_end_columns(
         return df
 
     if horaire_col and horaire_col in df.columns:
-        # EXTRACT renvoie un DataFrame à 2 colonnes ; on l'assigne BIEN à 2 colonnes.
         times = df[horaire_col].astype(str).str.extract(TIME_RANGE_REGEX, expand=True)
-        # Crée les colonnes même si tout est NaN (structure stable)
-        if start_col not in df.columns or end_col not in df.columns:
-            df[start_col] = pd.NA
-            df[end_col] = pd.NA
-        df.loc[:, [start_col, end_col]] = times
-    else:
-        # Crée colonnes vides si on n'a pas de 'horaire'
+        # Crée les colonnes si absentes (structure stable même si tout est NaN)
         if start_col not in df.columns:
             df[start_col] = pd.NA
         if end_col not in df.columns:
             df[end_col] = pd.NA
-
+        df.loc[:, [start_col, end_col]] = times
+    else:
+        if start_col not in df.columns:
+            df[start_col] = pd.NA
+        if end_col not in df.columns:
+            df[end_col] = pd.NA
     return df
 
 def build_start_end_dt(
@@ -46,15 +45,13 @@ def build_start_end_dt(
 ) -> pd.DataFrame:
     """
     Construit deux colonnes datetime64[ns] : start_dt et end_dt, sans jamais assigner un DataFrame à une Series.
-    Gère aussi le rollover (fin après minuit).
+    Gère aussi le passage minuit (fin < début).
     """
-    # Normalisation date
     if date_col in df.columns:
         df[date_col] = pd.to_datetime(df[date_col], errors="coerce", dayfirst=dayfirst)
     else:
         df[date_col] = pd.NaT
 
-    # S'assurer d'avoir start/end en texte
     if start_col not in df.columns:
         df[start_col] = pd.NA
     if end_col not in df.columns:
@@ -65,18 +62,15 @@ def build_start_end_dt(
     df[start_dt_col] = pd.to_datetime(
         (date_str.fillna("") + " " + df[start_col].astype(str)).str.strip(),
         errors="coerce",
-        dayfirst=False,
     )
     df[end_dt_col] = pd.to_datetime(
         (date_str.fillna("") + " " + df[end_col].astype(str)).str.strip(),
         errors="coerce",
-        dayfirst=False,
     )
 
     # Rollover si fin < début (ex: 22:00-06:00)
     mask_rollover = df[end_dt_col].notna() & df[start_dt_col].notna() & (df[end_dt_col] < df[start_dt_col])
     df.loc[mask_rollover, end_dt_col] = df.loc[mask_rollover, end_dt_col] + pd.Timedelta(days=1)
-
     return df
 
 def ensure_datetimes_pipeline(
