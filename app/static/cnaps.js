@@ -101,6 +101,48 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
+        // --- Action ANALYZE (dynamique) ---
+  btnAnalyze.addEventListener("click", async () => {
+    const tile  = $(`.tile[data-key="${ACTIVE_KEY}"]`);
+    const input = $('input[type=file]', tile);
+    out.hidden  = false;
+
+    if (!input.files || input.files.length === 0) {
+      out.textContent = "Veuillez sélectionner un fichier pour cette rubrique.";
+      return;
+    }
+
+    // Si ce sont des plannings -> on ouvre la page HTML dédiée
+    if (ACTIVE_KEY === "planning") {
+      // créer un formulaire éphémère pour POSTer le fichier et ouvrir un nouvel onglet
+      const form = document.createElement("form");
+      form.method = "POST";
+      form.enctype = "multipart/form-data";
+      form.action = "/planning/analyze/html";
+      form.target = "_blank";
+
+      const fileField = input.cloneNode();
+      // on doit réutiliser le FileList sélectionné, ce n'est pas copiable directement :
+      // astuce : on passe par DataTransfer
+      const dt = new DataTransfer();
+      dt.items.add(input.files[0]);
+      fileField.files = dt.files;
+      fileField.name = "file";
+      fileField.style.display = "none";
+
+      form.appendChild(fileField);
+      document.body.appendChild(form);
+      form.submit();
+      form.remove();
+
+      out.textContent = "Ouverture du rapport dans un nouvel onglet…";
+      return;
+    }
+
+    // Pour les autres catégories (en attendant leurs endpoints)
+    out.textContent = `Analyse pour « ${LABELS[ACTIVE_KEY] || ACTIVE_KEY} » : bientôt disponible.`;
+  });
+
     // Endpoint ?
     const cfg = ENDPOINTS[ACTIVE_KEY];
     if (!cfg || !cfg.analyze) {
