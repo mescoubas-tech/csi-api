@@ -19,3 +19,10 @@ python-dateutil
 python-multipart
 pytesseract
 pillow
+PyMuPDF
+easyocr
+torch
+torchvision
+torchaudio
+pillow
+PyMuPDF
