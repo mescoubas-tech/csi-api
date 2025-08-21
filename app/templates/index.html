@@ -1,157 +1,43 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="fr">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>CSI — Analyse de conformité</title>
-  <link rel="stylesheet" href="/static/minimal.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Contrôle Sécurité</title>
+  <link rel="stylesheet" href="/static/cnaps.css">
 </head>
 <body>
-  <header class="site-header">
-    <div class="container bar">
-      <div class="brand">
-        <div class="dot"></div>
-        <span>CSI</span>
-      </div>
-      <nav class="nav">
-        <a href="/docs" target="_blank">Docs</a>
-        <a href="/redoc" target="_blank">ReDoc</a>
-      </nav>
-    </div>
+  <header class="header">
+    <h1>🛡️ Interface Contrôle Sécurité</h1>
   </header>
 
-  <main>
-    <section class="hero container">
-      <h1>Analyse de conformité,<br />simple et élégante.</h1>
-      <p class="lede">
-        Téléversez vos documents CNAPS. Nous détectons les écarts majeurs (durées, repos, hebdo, etc.)
-        et générons un rapport clair.
-      </p>
-      <div class="cta">
-        <a class="btn" href="/docs" target="_blank">Explorer la documentation</a>
-        <button class="btn ghost" id="scrollToUpload">Analyser un fichier</button>
-      </div>
+  <main class="main">
+    <section class="card">
+      <h2>Analyse de documents</h2>
+      <form method="post" enctype="multipart/form-data" action="/analyze">
+        <input type="file" name="file" class="file-input">
+        <button type="submit" class="btn">Analyser</button>
+      </form>
     </section>
 
-    <section class="panel container" id="upload">
-      <h2>Plannings des agents</h2>
-      <p class="muted">PDF numérique, CSV ou Excel. Taille max 25&nbsp;Mo.</p>
-
-      <div class="uploader" id="drop">
-        <input id="file" type="file" accept=".pdf,.csv,.xlsx,.xls" />
-        <div class="hint">
-          <div class="icon">⬆︎</div>
-          <div>
-            <strong>Glissez-déposez</strong> votre fichier ici<br />
-            ou <span class="underline">cliquez pour parcourir</span>.
-          </div>
-        </div>
-        <div class="filename" id="filename" hidden></div>
-      </div>
-
-      <div class="actions">
-        <button class="btn" id="analyze">Analyser</button>
-        <button class="btn outline" id="export">Exporter le rapport PDF</button>
-      </div>
-
-      <pre id="output" class="output" hidden></pre>
-    </section>
-
-    <section class="features container">
-      <div class="card">
-        <h3>/planning/analyze</h3>
-        <p>Chargez un planning et obtenez un diagnostic instantané.</p>
-      </div>
-      <div class="card">
-        <h3>/planning/export/report</h3>
-        <p>Générez un rapport PDF propre à partager.</p>
-      </div>
-      <div class="card">
-        <h3>API first</h3>
-        <p>Tout est accessible par API, la page n’est qu’un surcouche.</p>
-      </div>
+    <section class="card">
+      <h2>Statut du service</h2>
+      <p id="status">Chargement...</p>
     </section>
   </main>
 
-  <footer class="site-footer">
-    <div class="container foot">
-      <span class="muted">© <span id="year"></span> CSI</span>
-      <span class="muted">Statut : <strong id="health">—</strong></span>
-    </div>
+  <footer class="footer">
+    <p>© 2025 CSI · Design inspiré Apple</p>
   </footer>
 
   <script>
-    const el = (id) => document.getElementById(id);
-    const fileInput = el('file');
-    const fileName = el('filename');
-    const out = el('output');
-
-    // smooth scroll to uploader
-    el('scrollToUpload').addEventListener('click', () =>
-      document.getElementById('upload').scrollIntoView({ behavior: 'smooth' })
-    );
-
-    // header status
-    (async () => {
-      try {
-        const r = await fetch('/planning/health');
-        const j = await r.json();
-        el('health').textContent = j?.status === 'ok' ? 'en ligne' : 'indisponible';
-      } catch {
-        el('health').textContent = 'indisponible';
-      }
-      el('year').textContent = new Date().getFullYear();
-    })();
-
-    // drag & drop
-    const drop = document.getElementById('drop');
-    ['dragenter','dragover'].forEach(evt =>
-      drop.addEventListener(evt, e => { e.preventDefault(); drop.classList.add('hover'); })
-    );
-    ['dragleave','drop'].forEach(evt =>
-      drop.addEventListener(evt, e => { e.preventDefault(); drop.classList.remove('hover'); })
-    );
-    drop.addEventListener('drop', e => {
-      const f = e.dataTransfer.files?.[0];
-      if (f) { fileInput.files = e.dataTransfer.files; showName(f.name); }
-    });
-    drop.addEventListener('click', () => fileInput.click());
-    fileInput.addEventListener('change', () => {
-      const f = fileInput.files?.[0];
-      if (f) showName(f.name);
-    });
-    function showName(name) { fileName.hidden = false; fileName.textContent = name; }
-
-    // analyze
-    el('analyze').addEventListener('click', async () => {
-      const f = fileInput.files?.[0];
-      if (!f) return alert('Choisissez un fichier.');
-      out.hidden = false; out.textContent = 'Analyse en cours…';
-      const form = new FormData(); form.append('file', f);
-      try {
-        const r = await fetch('/planning/analyze', { method: 'POST', body: form });
-        const t = await r.text();
-        try { out.textContent = JSON.stringify(JSON.parse(t), null, 2); }
-        catch { out.textContent = t; }
-      } catch (e) { out.textContent = 'Erreur: ' + e.message; }
-    });
-
-    // export
-    el('export').addEventListener('click', async () => {
-      const f = fileInput.files?.[0];
-      if (!f) return alert('Choisissez un fichier.');
-      out.hidden = false; out.textContent = 'Génération du rapport…';
-      const form = new FormData(); form.append('file', f);
-      try {
-        const r = await fetch('/planning/export/report', { method: 'POST', body: form });
-        if (!r.ok) { out.textContent = 'Erreur: ' + await r.text(); return; }
-        const blob = await r.blob();
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url; a.download = 'rapport_audit_plannings.pdf'; a.click();
-        out.textContent = 'Rapport téléchargé.';
-      } catch (e) { out.textContent = 'Erreur: ' + e.message; }
-    });
+    async function getStatus() {
+      const res = await fetch('/status');
+      const data = await res.json();
+      document.getElementById('status').textContent =
+        `Service: ${data.service} · ${data.status}`;
+    }
+    getStatus();
   </script>
 </body>
 </html>
