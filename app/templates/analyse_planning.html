@@ -1,0 +1,133 @@
+<!doctype html><meta charset="utf-8">
+<title>Analyse en cours… • CSI</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="icon" href="data:,">
+<style>
+  :root{--bg:#0b1020;--card:#111833;--text:#e6e9f2;--muted:#9aa3b2;--accent:#6aa1ff;--ok:#22c55e;--err:#ef4444}
+  *{box-sizing:border-box} body{margin:0;background:linear-gradient(180deg,#0b1020,#0e1630);}
+  .wrap{max-width:1000px;margin:48px auto;padding:0 20px;color:var(--text);font:16px/1.6 system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
+  .card{background:var(--card);border:1px solid #1b254a;border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,.3);padding:24px}
+  h1{margin:0 0 12px;font-size:26px} p.muted{color:var(--muted);margin:0 0 16px}
+  .row{display:flex;gap:12px;margin:10px 0 20px}
+  button{cursor:pointer;border:1px solid #2a3a75;background:#1a2a6a;color:#eaf1ff;padding:10px 14px;border-radius:10px}
+  .err{color:var(--err)} .ok{color:var(--ok)}
+  pre{background:#0a0f25;color:#eaf1ff;padding:12px;border-radius:10px;white-space:pre-wrap}
+  table{width:100%;border-collapse:collapse;margin-top:10px}
+  th,td{border:1px solid #223166;padding:8px;text-align:left}
+  th{background:#182455}
+  .spinner{display:inline-block;width:16px;height:16px;border:2px solid #6aa1ff;border-right-color:transparent;border-radius:50%;animation:spin 0.8s linear infinite;vertical-align:middle;margin-right:8px}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  a{color:var(--accent);text-decoration:none}
+</style>
+
+<div class="wrap">
+  <div class="card">
+    <h1>Analyse des plannings</h1>
+    <p class="muted" id="src"></p>
+
+    <div id="status">
+      <span class="spinner"></span> Analyse en cours… cela peut prendre un petit moment selon le site source.
+    </div>
+    <div id="error" class="err" style="display:none"></div>
+
+    <div id="result" style="display:none">
+      <h2 style="margin-top:10px">Résultat</h2>
+      <div id="meta" class="muted"></div>
+
+      <h3 style="margin-top:18px">Constats</h3>
+      <ul id="findings"></ul>
+
+      <h3 style="margin-top:18px">Aperçu (10 premières lignes)</h3>
+      <div id="preview"></div>
+
+      <div class="row">
+        <button id="btn-retry">Ré-analyser</button>
+        <a href="/" style="align-self:center">← Retour</a>
+        <a href="/docs" target="_blank" style="align-self:center">Docs API →</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const qs = new URLSearchParams(location.search);
+  const url = qs.get("u");
+  document.getElementById("src").textContent = url ? `Source : ${url}` : "Aucune URL fournie.";
+
+  async function runAnalysis() {
+    const status = document.getElementById("status");
+    const error = document.getElementById("error");
+    const result = document.getElementById("result");
+    error.style.display = "none";
+    result.style.display = "none";
+    status.style.display = "block";
+
+    if (!url) {
+      error.textContent = "Aucune URL reçue. Retour à l’accueil.";
+      error.style.display = "block";
+      status.style.display = "none";
+      return;
+    }
+
+    try {
+      const resp = await fetch("/plannings/analyze", {
+        method: "POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({ url })
+      });
+      const json = await resp.json();
+
+      if (!resp.ok || !json.ok) {
+        error.textContent = json?.message || "Analyse impossible.";
+        error.style.display = "block";
+        status.style.display = "none";
+        return;
+      }
+
+      // Rendu
+      status.style.display = "none";
+      result.style.display = "block";
+
+      const meta = document.getElementById("meta");
+      const findings = document.getElementById("findings");
+      const preview = document.getElementById("preview");
+
+      meta.textContent = `Lignes : ${json.data?.meta?.rows ?? "?"}`;
+
+      findings.innerHTML = "";
+      (json.data?.findings || []).forEach(f => {
+        const li = document.createElement("li");
+        li.textContent = (f.type ? `[${f.type}] ` : "") + (f.message || JSON.stringify(f));
+        findings.appendChild(li);
+      });
+      if ((json.data?.findings || []).length === 0) {
+        findings.innerHTML = "<li>Aucun constat particulier.</li>";
+      }
+
+      // Aperçu en table
+      const records = json.data?.preview || [];
+      if (records.length === 0) {
+        preview.innerHTML = "<p class='muted'>Aucun aperçu disponible.</p>";
+      } else {
+        const cols = Object.keys(records[0]);
+        let html = "<table><thead><tr>";
+        cols.forEach(c => html += `<th>${c}</th>`);
+        html += "</tr></thead><tbody>";
+        records.forEach(r => {
+          html += "<tr>";
+          cols.forEach(c => html += `<td>${r[c] ?? ""}</td>`);
+          html += "</tr>";
+        });
+        html += "</tbody></table>";
+        preview.innerHTML = html;
+      }
+    } catch (e) {
+      error.textContent = e.message || "Erreur réseau.";
+      error.style.display = "block";
+      status.style.display = "none";
+    }
+  }
+
+  document.getElementById("btn-retry").addEventListener("click", runAnalysis);
+  runAnalysis();
+</script>
