@@ -1,29 +1,81 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, UploadFile, File, Form
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
+import os
 
-# Initialisation de l'app FastAPI
-app = FastAPI(title="CSI API", version="1.0.0")
+app = FastAPI()
 
-# Montage des fichiers statiques (CSS, JS, images)
-app.mount("/static", StaticFiles(directory="app/static"), name="static")
+# === Création du dossier static si absent ===
+if not os.path.exists("static"):
+    os.makedirs("static")
 
-# Templates (HTML)
-templates = Jinja2Templates(directory="app/templates")
+# Montage des fichiers statiques (CSS, images, etc.)
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# Page d'accueil (ton interface Apple-like)
+
+# === PAGE D'ACCUEIL ===
 @app.get("/", response_class=HTMLResponse)
-async def home(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request})
+async def home():
+    return """
+    <!DOCTYPE html>
+    <html lang="fr">
+    <head>
+        <meta charset="UTF-8">
+        <title>Contrôle Sécurité</title>
+        <link rel="stylesheet" href="/static/cnaps.css">
+    </head>
+    <body>
+        <div class="container">
+            <h1>🛡️ Contrôle Sécurité</h1>
+            <p>Analysez vos documents en toute simplicité.</p>
 
-# Route de vérification du service
+            <form id="uploadForm">
+                <input type="file" id="fileInput" name="file" accept=".pdf,.png,.jpg" required>
+                <button type="submit">Analyser</button>
+            </form>
+
+            <div id="result"></div>
+        </div>
+
+        <script>
+        const form = document.getElementById("uploadForm");
+        form.addEventListener("submit", async (e) => {
+            e.preventDefault();
+            const fileInput = document.getElementById("fileInput");
+            const formData = new FormData();
+            formData.append("file", fileInput.files[0]);
+
+            const res = await fetch("/analyze", {
+                method: "POST",
+                body: formData
+            });
+
+            const data = await res.json();
+            document.getElementById("result").innerHTML =
+                "<h3>Résultat :</h3><pre>" + JSON.stringify(data, null, 2) + "</pre>";
+        });
+        </script>
+    </body>
+    </html>
+    """
+
+
+# === STATUS (HEALTHCHECK) ===
 @app.get("/status")
 async def status():
-    return {"status": "ok", "service": "csi-api", "docs": "/docs"}
+    return {"status": "ok", "service": "csi-api"}
 
+
+# === ANALYSE (Upload de fichier PDF ou image) ===
 @app.post("/analyze")
 async def analyze(file: UploadFile = File(...)):
-    content = await file.read()
-    size_kb = len(content) / 1024
-    return {"filename": file.filename, "size_kb": round(size_kb, 2)}
+    try:
+        content = await file.read()
+        size_kb = len(content) / 1024
+        return {
+            "filename": file.filename,
+            "size_kb": round(size_kb, 2),
+            "status": "fichier reçu et analysé"
+        }
+    except Exception as e:
+        return {"error": str(e)}
