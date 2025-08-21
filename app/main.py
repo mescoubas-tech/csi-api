@@ -57,3 +57,8 @@ app.include_router(planning_router)
 @app.exception_handler(Exception)
 async def unhandled_error_handler(_req: Request, exc: Exception):
     return JSONResponse(status_code=500, content={"detail": str(exc)})
+
+from fastapi.staticfiles import StaticFiles
+
+# Monte les fichiers statiques (css, js, images)
+app.mount("/static", StaticFiles(directory="static"), name="static")
