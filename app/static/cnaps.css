@@ -1,55 +1,49 @@
-body {
-    margin: 0;
-    font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
-    background: #fdfdfd;
-    color: #111;
-    text-align: center;
-    padding: 50px;
+:root{
+  --bg:#f7f7fa; --panel:#fff; --line:#e5e5ea; --text:#0a0a0a; --muted:#6e6e73;
+  --accent:#0071e3; --shadow:0 10px 30px rgba(0,0,0,.06);
 }
+*{box-sizing:border-box} html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--text);
+     font:16px/1.55 -apple-system,BlinkMacSystemFont,"SF Pro Text",Inter,system-ui,Segoe UI,Roboto,Helvetica,Arial}
+.wrap{max-width:1200px;margin:0 auto;padding:0 20px}
 
-.container {
-    max-width: 600px;
-    margin: auto;
-    background: white;
-    padding: 40px;
-    border-radius: 20px;
-    box-shadow: 0 10px 40px rgba(0,0,0,0.05);
-}
+.topbar{background:rgba(255,255,255,.8);backdrop-filter:saturate(180%) blur(16px); border-bottom:1px solid var(--line)}
+.crumbs{height:48px;display:flex;align-items:center;gap:10px}
+.crumbs a{color:var(--text);text-decoration:none}
+.crumbs a:hover{opacity:.7}
 
-h1 {
-    font-size: 2.5em;
-    font-weight: 600;
-    margin-bottom: 20px;
-}
+h1{font-size:32px;letter-spacing:-.01em;margin:20px 0}
+.grid{display:grid;grid-template-columns:1fr 360px;gap:24px}
+@media (max-width:1100px){.grid{grid-template-columns:1fr}}
 
-p {
-    color: #555;
-    margin-bottom: 30px;
-}
+.inputs{display:flex;gap:12px;margin:12px 0 16px}
+.text{flex:1; padding:12px 14px; border:1px solid var(--line); border-radius:12px; background:#fff}
 
-input[type="file"] {
-    margin: 20px 0;
-    font-size: 1em;
-}
+.tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+@media (max-width:700px){.tiles{grid-template-columns:1fr}}
 
-button {
-    background: black;
-    color: white;
-    border: none;
-    padding: 12px 25px;
-    font-size: 1em;
-    border-radius: 30px;
-    cursor: pointer;
-    transition: background 0.3s ease;
-}
+.tile{background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:14px; box-shadow:var(--shadow)}
+.tile.accent{border-color:#c6e2ff}
+.tile-head{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin-bottom:8px}
+.tile h3{margin:0;font-size:16px}
+.tile small{color:var(--muted)}
+.tile input[type=file]{width:100%}
+.file-name{margin-top:6px; color:#111; font-size:13px}
+.ok{color:#2fb344}
 
-button:hover {
-    background: #333;
-}
+.actions{display:flex;gap:10px;margin:16px 0}
+.btn{border:0;border-radius:12px;padding:12px 16px;background:#111;color:#fff;font-weight:600;cursor:pointer}
+.btn.ghost{background:#f2f2f7;color:#111;border:1px solid var(--line)}
+.btn:hover{opacity:.9}
 
-#result {
-    margin-top: 30px;
-    text-align: left;
-    font-family: monospace;
-    white-space: pre-wrap;
-}
+.output{background:#0b1220;color:#e9eefc;border-radius:14px;padding:14px;max-height:360px;overflow:auto}
+
+.aside{background:var(--panel); border:1px solid var(--line); border-radius:18px; padding:16px; box-shadow:var(--shadow); height:max-content}
+.aside h2{margin:6px 0 12px}
+.list{margin:0 0 12px 16px}
+.list li{margin:4px 0}
+.muted{color:var(--muted)}
+
+.foot{display:flex;justify-content:space-between;align-items:center;height:60px;margin-top:24px;color:var(--muted)}
+.link{color:var(--text);text-decoration:none}
+.link:hover{opacity:.7}
