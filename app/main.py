@@ -1,4 +1,5 @@
 # app/main.py
+from pathlib import Path
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
@@ -7,7 +8,12 @@ from fastapi.templating import Jinja2Templates
 
 from app.plannings.router import router as planning_router
 
-app = FastAPI(title="CSI API", version="1.6.3")
+app = FastAPI(title="CSI API", version="1.6.4")
+
+# Chemins absolus depuis ce fichier (évite les soucis en prod)
+BASE_DIR = Path(__file__).resolve().parent
+TEMPLATES_DIR = BASE_DIR / "templates"
+STATIC_DIR = BASE_DIR / "static"
 
 # CORS
 app.add_middleware(
@@ -18,9 +24,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Static & templates
-app.mount("/static", StaticFiles(directory="app/static"), name="static")
-templates = Jinja2Templates(directory="app/templates")
+# Static & templates (montage conditionnel pour ne pas crasher si le dossier n'existe pas)
+if STATIC_DIR.exists():
+    app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+
+templates = Jinja2Templates(directory=str(TEMPLATES_DIR)) if TEMPLATES_DIR.exists() else None
 
 # API
 app.include_router(planning_router)
@@ -33,14 +41,10 @@ async def health():
 # Page d’accueil (UI)
 @app.get("/", include_in_schema=False)
 async def home(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request})
-
-# Page d’analyse (UI)
-@app.get("/analyse-planning", include_in_schema=False)
-async def analyse_planning_page(request: Request):
-    return templates.TemplateResponse("analyse_planning.html", {"request": request})
-
-# (facultatif) page de test rapide
-@app.get("/_landing", include_in_schema=False)
-async def landing():
-    return HTMLResponse("<h1>CSI API</h1><p>Service en ligne ✅</p><p><a href='/'>UI</a> • <a href='/docs'>Docs</a></p>")
+    index_path = TEMPLATES_DIR / "index.html"
+    if templates and index_path.exists():
+        return templates.TemplateResponse("index.html", {"request": request})
+    # Fallback lisible si le template manque (évite le 500)
+    return HTMLResponse(
+        """
+        <!do
