@@ -12,7 +12,9 @@ router = APIRouter(prefix="", tags=["planning-audit"])
 
 # Limites & contrôles de base
 MAX_UPLOAD_MB = 30
-ALLOWED_EXT = {".csv", ".xlsx", ".xls"}
+
+# APRÈS
+ALLOWED_EXT = {".csv", ".xlsx", ".xls", ".pdf"}
 
 def _check_upload(request: Request, file: UploadFile):
     # Taille (via Content-Length quand dispo)
