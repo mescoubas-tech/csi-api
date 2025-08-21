@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{{ title }}</title>
+  <link rel="stylesheet" href="/static/cnaps.css">
+  <style>
+    .pill{display:inline-block;padding:2px 8px;border-radius:999px;border:1px solid var(--line);font-size:12px}
+    .code{font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace}
+    .viol{background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:10px;box-shadow:var(--shadow)}
+    .viol h4{margin:0 0 6px 0}
+    .sumgrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:12px 0}
+    .card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px;text-align:center}
+    .muted{color:var(--muted)}
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="wrap"><nav class="crumbs"><a href="/">Accueil</a> · <span>Résultats</span></nav></div>
+  </header>
+
+  <main class="wrap">
+    <h1>{{ title }}</h1>
+
+    {% set s = result.summary %}
+    <div class="sumgrid">
+      <div class="card"><div class="muted">Salariés</div><div style="font-size:22px">{{ s.employees }}</div></div>
+      <div class="card"><div class="muted">Jours</div><div style="font-size:22px">{{ s.days }}</div></div>
+      <div class="card"><div class="muted">Heures totales</div><div style="font-size:22px">{{ "%.2f"|format(s.total_hours) }}</div></div>
+      <div class="card"><div class="muted">Non-conformités</div><div style="font-size:22px">{{ s.violations_count }}</div></div>
+    </div>
+
+    <h2 style="margin-top:20px">Non-conformités détectées</h2>
+    {% if result.violations and result.violations|length > 0 %}
+      {% for v in result.violations %}
+        <div class="viol">
+          <h4>
+            <span class="pill code">#{{ v.code }}</span>
+            &nbsp;{{ v.employee_name or v.employee_id }} — {{ v.date }}
+          </h4>
+          <div>{{ v.message }}</div>
+          {% if v.details %}
+            <div class="muted" style="margin-top:6px">
+              Détails : {{ v.details }}
+            </div>
+          {% endif %}
+        </div>
+      {% endfor %}
+    {% else %}
+      <div class="viol">
+        ✅ Aucune non-conformité majeure détectée selon les règles configurées.
+      </div>
+    {% endif %}
+
+    <h2 style="margin-top:26px">Références utiles</h2>
+    <ul>
+      <li>Repos quotidien ≥ 11 h — <span class="code">Code du travail L3131-1</span> (principe). Source : Legifrance. :contentReference[oaicite:0]{index=0}</li>
+      <li>Repos hebdomadaire ≥ 35 h (24 h + 11 h) — <span class="code">L3132-2</span> + rappel du repos quotidien. Sources : Legifrance et Ministère du Travail. :contentReference[oaicite:1]{index=1}</li>
+      <li>Durée quotidienne max 10 h (dérogations possibles) — <span class="code">L3121-18</span>. Sources : Legifrance, Code du travail numérique. :contentReference[oaicite:2]{index=2}</li>
+      <li>Durée hebdomadaire max 48 h et moyenne 44 h/12 semaines — <span class="code">L3121-20</span> et <span class="code">L3121-22</span>. Source : Legifrance. :contentReference[oaicite:3]{index=3}</li>
+    </ul>
+    <p class="muted" style="margin-top:10px">
+      Indications générales — des dérogations conventionnelles/sectorielles peuvent s’appliquer.
+    </p>
+  </main>
+
+  <footer class="foot wrap">
+    <span>© <span id="year"></span> CSI API</span>
+    <a class="link" href="/docs" target="_blank">Documentation</a>
+  </footer>
+
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      document.getElementById("year").textContent = new Date().getFullYear();
+    });
+  </script>
+</body>
+</html>
