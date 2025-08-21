@@ -25,8 +25,7 @@
         </div>
 
         <div class="tiles">
-
-          <!-- AUTORISATION D'EXERCER -->
+          <!-- 1 -->
           <div class="tile" data-key="aut">
             <div class="tile-head">
               <h3>Autorisation d’exercer <span class="ok" hidden>✔</span></h3>
@@ -36,7 +35,7 @@
             <div class="file-name"></div>
           </div>
 
-          <!-- AGREMENT DIRIGEANT -->
+          <!-- 2 -->
           <div class="tile" data-key="agd">
             <div class="tile-head">
               <h3>Agrément dirigeant <span class="ok" hidden>✔</span></h3>
@@ -46,7 +45,7 @@
             <div class="file-name"></div>
           </div>
 
-          <!-- ATTESTATION ASSURANCE PRO -->
+          <!-- 3 -->
           <div class="tile" data-key="aap">
             <div class="tile-head">
               <h3>Attestation d’assurance professionnelle</h3>
@@ -56,7 +55,7 @@
             <div class="file-name"></div>
           </div>
 
-          <!-- EXTRACT KBIS -->
+          <!-- 4 -->
           <div class="tile" data-key="kbis">
             <div class="tile-head">
               <h3>Extrait Kbis</h3>
@@ -66,7 +65,17 @@
             <div class="file-name"></div>
           </div>
 
-          <!-- DSN -->
+          <!-- 5 -->
+          <div class="tile" data-key="statuts">
+            <div class="tile-head">
+              <h3>Statuts de l’entreprise à jour</h3>
+              <small>PDF</small>
+            </div>
+            <input type="file" accept=".pdf" />
+            <div class="file-name"></div>
+          </div>
+
+          <!-- 6 -->
           <div class="tile" data-key="dsn">
             <div class="tile-head">
               <h3>Déclarations sociales nominatives (DSN)</h3>
@@ -76,7 +85,17 @@
             <div class="file-name"></div>
           </div>
 
-          <!-- RELEVES DE COMPTES -->
+          <!-- 7 -->
+          <div class="tile" data-key="urssaf_vigilance">
+            <div class="tile-head">
+              <h3>Attestation de vigilance URSSAF à jour</h3>
+              <small>PDF</small>
+            </div>
+            <input type="file" accept=".pdf" />
+            <div class="file-name"></div>
+          </div>
+
+          <!-- 8 -->
           <div class="tile" data-key="releves">
             <div class="tile-head">
               <h3>Relevés de comptes (6 mois)</h3>
@@ -86,8 +105,18 @@
             <div class="file-name"></div>
           </div>
 
-          <!-- GRAND LIVRE -->
-          <div class="tile" data-key="gl">
+          <!-- 9 -->
+          <div class="tile" data-key="liasse">
+            <div class="tile-head">
+              <h3>Dernière liasse fiscale</h3>
+              <small>PDF/ZIP</small>
+            </div>
+            <input type="file" accept=".pdf,.zip" />
+            <div class="file-name"></div>
+          </div>
+
+          <!-- 10 -->
+          <div class="tile" data-key="grand_livre">
             <div class="tile-head">
               <h3>Grand livre de comptes</h3>
               <small>PDF/CSV/XLSX</small>
@@ -96,7 +125,7 @@
             <div class="file-name"></div>
           </div>
 
-          <!-- PLANNINGS (le seul analysé côté backend pour l’instant) -->
+          <!-- 11 (PLANNING — actionnée par les boutons) -->
           <div class="tile accent" data-key="planning">
             <div class="tile-head">
               <h3>Plannings des agents (6 mois) <span class="ok" hidden>✔</span></h3>
@@ -106,7 +135,7 @@
             <div class="file-name"></div>
           </div>
 
-          <!-- BULLETINS DE PAIE -->
+          <!-- 12 -->
           <div class="tile" data-key="paie">
             <div class="tile-head">
               <h3>Bulletins de paie des agents (6 mois)</h3>
@@ -116,7 +145,7 @@
             <div class="file-name"></div>
           </div>
 
-          <!-- FACTURES -->
+          <!-- 13 -->
           <div class="tile" data-key="factures">
             <div class="tile-head">
               <h3>Factures (6 mois)</h3>
@@ -126,8 +155,85 @@
             <div class="file-name"></div>
           </div>
 
-          <!-- etc. (tu peux dupliquer) -->
+          <!-- 14 -->
+          <div class="tile" data-key="sous_traitants_liste">
+            <div class="tile-head">
+              <h3>Liste des sous-traitants</h3>
+              <small>PDF/CSV/XLSX</small>
+            </div>
+            <input type="file" accept=".pdf,.csv,.xlsx,.xls" />
+            <div class="file-name"></div>
+          </div>
 
+          <!-- 15 -->
+          <div class="tile" data-key="sous_traitants_vigilance">
+            <div class="tile-head">
+              <h3>Attestations de vigilance URSSAF (sous-traitants)</h3>
+              <small>PDF</small>
+            </div>
+            <input type="file" accept=".pdf" multiple />
+            <div class="file-name"></div>
+          </div>
+
+          <!-- 16 -->
+          <div class="tile" data-key="contrats_st">
+            <div class="tile-head">
+              <h3>Contrats de sous-traitance</h3>
+              <small>PDF</small>
+            </div>
+            <input type="file" accept=".pdf" multiple />
+            <div class="file-name"></div>
+          </div>
+
+          <!-- 17 -->
+          <div class="tile" data-key="carte_pro_modele">
+            <div class="tile-head">
+              <h3>Modèle carte professionnelle (entreprise)</h3>
+              <small>PDF</small>
+            </div>
+            <input type="file" accept=".pdf" />
+            <div class="file-name"></div>
+          </div>
+
+          <!-- 18 -->
+          <div class="tile" data-key="rup">
+            <div class="tile-head">
+              <h3>Registre unique du personnel</h3>
+              <small>PDF/CSV/XLSX</small>
+            </div>
+            <input type="file" accept=".pdf,.csv,.xlsx,.xls" />
+            <div class="file-name"></div>
+          </div>
+
+          <!-- 19 -->
+          <div class="tile" data-key="rci">
+            <div class="tile-head">
+              <h3>Registre des contrôles internes</h3>
+              <small>PDF</small>
+            </div>
+            <input type="file" accept=".pdf" />
+            <div class="file-name"></div>
+          </div>
+
+          <!-- 20 -->
+          <div class="tile" data-key="dpae">
+            <div class="tile-head">
+              <h3>Justificatifs DPAE</h3>
+              <small>PDF</small>
+            </div>
+            <input type="file" accept=".pdf" multiple />
+            <div class="file-name"></div>
+          </div>
+
+          <!-- 21 -->
+          <div class="tile" data-key="factures_st">
+            <div class="tile-head">
+              <h3>Factures des sous-traitants</h3>
+              <small>PDF</small>
+            </div>
+            <input type="file" accept=".pdf" multiple />
+            <div class="file-name"></div>
+          </div>
         </div>
 
         <div class="actions">
@@ -138,7 +244,7 @@
         <pre id="output" class="output" hidden></pre>
       </section>
 
-      <!-- Colonne droite : Nomenclature -->
+      <!-- Colonne droite : Nomenclature (inchangée) -->
       <aside class="aside">
         <h2>Nomenclature des pièces</h2>
         <ul class="list">
