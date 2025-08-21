@@ -168,3 +168,75 @@ def load_schedule(file_bytes: bytes, filename: str) -> pd.DataFrame:
     if name.endswith(".pdf"):
         return _read_pdf_tables(file_bytes)
     raise ValueError("Unsupported file format. Use CSV, Excel, or PDF.")
+    import io, re
+import pandas as pd
+import pdfplumber
+from PIL import Image
+import easyocr
+
+# ... (garde tout le code précédent)
+
+def _read_pdf_with_ocr(file_bytes: bytes) -> pd.DataFrame:
+    """OCR sur PDF scanné : extrait texte brut, tente de reconstruire un tableau simple."""
+    reader = easyocr.Reader(["fr", "en"])
+    texts = []
+
+    import tempfile
+    import fitz  # PyMuPDF pour convertir pages -> images
+    with tempfile.NamedTemporaryFile(suffix=".pdf") as tmp:
+        tmp.write(file_bytes)
+        tmp.flush()
+        pdf = fitz.open(tmp.name)
+        for page in pdf:
+            pix = page.get_pixmap()
+            img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+            result = reader.readtext(np.array(img), detail=0)
+            texts.append(" ".join(result))
+
+    raw_text = "\n".join(texts)
+
+    # Naïf : split par lignes et tabulations
+    lines = [re.split(r"\s{2,}|\t", l.strip()) for l in raw_text.split("\n") if l.strip()]
+    df = pd.DataFrame(lines)
+
+    # traite la première ligne comme header
+    if not df.empty:
+        df.columns = [str(c).strip() for c in df.iloc[0]]
+        df = df.iloc[1:].reset_index(drop=True)
+
+    return _normalize_columns(df)
+
+
+def _read_pdf_tables(file_bytes: bytes) -> pd.DataFrame:
+    """Extrait d'abord les tableaux numériques, sinon fallback OCR."""
+    tables = []
+    with pdfplumber.open(io.BytesIO(file_bytes)) as pdf:
+        for page in pdf.pages:
+            try:
+                t = page.extract_table()
+                if not t:
+                    continue
+                tables.append(pd.DataFrame(t))
+            except Exception:
+                continue
+
+    if not tables:
+        # fallback OCR
+        return _read_pdf_with_ocr(file_bytes)
+
+    # Fusion et nettoyage comme avant
+    dfs = []
+    for raw in tables:
+        df = raw.copy()
+        df.columns = [str(c).strip() for c in df.iloc[0]]
+        df = df.iloc[1:].reset_index(drop=True)
+        df = df.dropna(axis=1, how="all").dropna(how="all")
+        if not df.empty:
+            dfs.append(df)
+
+    if not dfs:
+        return _read_pdf_with_ocr(file_bytes)
+
+    merged = pd.concat(dfs, ignore_index=True)
+    merged = _normalize_columns(merged)
+    return merged
