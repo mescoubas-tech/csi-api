@@ -57,3 +57,5 @@ async def analyze_planning_from_url(url: str) -> Dict[str, Any]:
         "findings": [],  # alimente avec tes résultats
     }
     return analysis
+    
+    from services.datetime_utils import ensure_datetimes_pipeline
