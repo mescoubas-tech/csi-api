@@ -84,7 +84,6 @@
         return;
       }
 
-      // Rendu
       status.style.display = "none";
       result.style.display = "block";
 
@@ -104,7 +103,6 @@
         findings.innerHTML = "<li>Aucun constat particulier.</li>";
       }
 
-      // Aperçu en table
       const records = json.data?.preview || [];
       if (records.length === 0) {
         preview.innerHTML = "<p class='muted'>Aucun aperçu disponible.</p>";
