@@ -1,285 +1,56 @@
-<!doctype html>
-<html lang="fr">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Analyse de conformité CNAPS — Téléversement</title>
-  <link rel="stylesheet" href="/static/cnaps.css">
-</head>
-<body>
-  <header class="topbar">
-    <div class="wrap">
-      <nav class="crumbs"><a href="/">Accueil</a> · <a href="/docs" target="_blank">Docs</a></nav>
+<!doctype html><meta charset="utf-8">
+<title>CSI • Analyse des plannings</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="icon" href="data:,">
+<style>
+  :root{--bg:#0b1020;--card:#111833;--text:#e6e9f2;--muted:#9aa3b2;--accent:#6aa1ff;--ok:#22c55e;--err:#ef4444}
+  *{box-sizing:border-box} body{margin:0;background:linear-gradient(180deg,#0b1020,#0e1630);}
+  .wrap{max-width:880px;margin:48px auto;padding:0 20px;color:var(--text);font:16px/1.6 system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
+  .card{background:var(--card);border:1px solid #1b254a;border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,.3);padding:24px}
+  h1{margin:0 0 12px;font-size:28px} p.muted{color:var(--muted);margin:0 0 16px}
+  label{display:block;margin:12px 0 6px;color:#c8d2ea}
+  input[type=url]{width:100%;padding:12px 14px;border-radius:12px;border:1px solid #26325f;background:#0d1330;color:#eaf1ff;outline:none}
+  .row{display:flex;gap:12px;margin-top:16px}
+  button{cursor:pointer;border:1px solid #2a3a75;background:#1a2a6a;color:#eaf1ff;padding:12px 16px;border-radius:12px}
+  button:hover{background:#21347e}
+  .ok{color:var(--ok);margin-top:8px;display:none}
+  .err{color:var(--err);margin-top:8px;display:none}
+  small{color:var(--muted)}
+</style>
+
+<div class="wrap">
+  <div class="card">
+    <h1>Analyse des plannings</h1>
+    <p class="muted">Colle l’URL de la page planning puis clique <b>Analyser</b>. Tu seras redirigé vers la page d’analyse.</p>
+
+    <label for="planning-url">URL du planning</label>
+    <input id="planning-url" type="url" placeholder="https://exemple.tld/planning" />
+
+    <div class="row">
+      <button id="btn-analyze">Analyser</button>
+      <a href="/docs" target="_blank" style="align-self:center;color:var(--accent);text-decoration:none">Docs API →</a>
     </div>
-  </header>
 
-  <main class="wrap">
-    <h1>Analyse de conformité CNAPS — Téléversement</h1>
+    <div id="upload-status" class="ok">✅ Téléchargement ok</div>
+    <div id="error-status" class="err">❌ Erreur</div>
 
-    <div class="grid">
-      <!-- Colonne gauche : Uploads -->
-      <section>
-        <div class="inputs">
-          <input id="company" class="text" placeholder="Nom de l'entreprise" />
-          <input id="site" class="text" placeholder="Site internet (optionnel)" />
-        </div>
+    <p><small>Astuce : tu peux aussi appeler directement l’API <code>POST /plannings/analyze</code> (voir Docs).</small></p>
+  </div>
+</div>
 
-        <div class="tiles">
-          <!-- 1 -->
-          <div class="tile" data-key="aut">
-            <div class="tile-head">
-              <h3>Autorisation d’exercer <span class="ok" hidden>✔</span></h3>
-              <small>PDF/DOCX</small>
-            </div>
-            <input type="file" accept=".pdf,.doc,.docx" />
-            <div class="file-name"></div>
-          </div>
-
-          <!-- 2 -->
-          <div class="tile" data-key="agd">
-            <div class="tile-head">
-              <h3>Agrément dirigeant <span class="ok" hidden>✔</span></h3>
-              <small>PDF/DOCX</small>
-            </div>
-            <input type="file" accept=".pdf,.doc,.docx" />
-            <div class="file-name"></div>
-          </div>
-
-          <!-- 3 -->
-          <div class="tile" data-key="aap">
-            <div class="tile-head">
-              <h3>Attestation d’assurance professionnelle</h3>
-              <small>PDF</small>
-            </div>
-            <input type="file" accept=".pdf" />
-            <div class="file-name"></div>
-          </div>
-
-          <!-- 4 -->
-          <div class="tile" data-key="kbis">
-            <div class="tile-head">
-              <h3>Extrait Kbis</h3>
-              <small>PDF</small>
-            </div>
-            <input type="file" accept=".pdf" />
-            <div class="file-name"></div>
-          </div>
-
-          <!-- 5 -->
-          <div class="tile" data-key="statuts">
-            <div class="tile-head">
-              <h3>Statuts de l’entreprise à jour</h3>
-              <small>PDF</small>
-            </div>
-            <input type="file" accept=".pdf" />
-            <div class="file-name"></div>
-          </div>
-
-          <!-- 6 -->
-          <div class="tile" data-key="dsn">
-            <div class="tile-head">
-              <h3>Déclarations sociales nominatives (DSN)</h3>
-              <small>ZIP/PDF</small>
-            </div>
-            <input type="file" accept=".zip,.pdf" />
-            <div class="file-name"></div>
-          </div>
-
-          <!-- 7 -->
-          <div class="tile" data-key="urssaf_vigilance">
-            <div class="tile-head">
-              <h3>Attestation de vigilance URSSAF à jour</h3>
-              <small>PDF</small>
-            </div>
-            <input type="file" accept=".pdf" />
-            <div class="file-name"></div>
-          </div>
-
-          <!-- 8 -->
-          <div class="tile" data-key="releves">
-            <div class="tile-head">
-              <h3>Relevés de comptes (6 mois)</h3>
-              <small>PDF/CSV</small>
-            </div>
-            <input type="file" accept=".pdf,.csv" multiple />
-            <div class="file-name"></div>
-          </div>
-
-          <!-- 9 -->
-          <div class="tile" data-key="liasse">
-            <div class="tile-head">
-              <h3>Dernière liasse fiscale</h3>
-              <small>PDF/ZIP</small>
-            </div>
-            <input type="file" accept=".pdf,.zip" />
-            <div class="file-name"></div>
-          </div>
-
-          <!-- 10 -->
-          <div class="tile" data-key="grand_livre">
-            <div class="tile-head">
-              <h3>Grand livre de comptes</h3>
-              <small>PDF/CSV/XLSX</small>
-            </div>
-            <input type="file" accept=".pdf,.csv,.xlsx,.xls" />
-            <div class="file-name"></div>
-          </div>
-
-          <!-- 11 (PLANNING — actionnée par les boutons) -->
-          <div class="tile accent" data-key="planning">
-            <div class="tile-head">
-              <h3>Plannings des agents (6 mois) <span class="ok" hidden>✔</span></h3>
-              <small>PDF/CSV/XLSX</small>
-            </div>
-            <input type="file" accept=".pdf,.csv,.xlsx,.xls" />
-            <div class="file-name"></div>
-          </div>
-
-          <!-- 12 -->
-          <div class="tile" data-key="paie">
-            <div class="tile-head">
-              <h3>Bulletins de paie des agents (6 mois)</h3>
-              <small>PDF</small>
-            </div>
-            <input type="file" accept=".pdf" multiple />
-            <div class="file-name"></div>
-          </div>
-
-          <!-- 13 -->
-          <div class="tile" data-key="factures">
-            <div class="tile-head">
-              <h3>Factures (6 mois)</h3>
-              <small>PDF</small>
-            </div>
-            <input type="file" accept=".pdf" multiple />
-            <div class="file-name"></div>
-          </div>
-
-          <!-- 14 -->
-          <div class="tile" data-key="sous_traitants_liste">
-            <div class="tile-head">
-              <h3>Liste des sous-traitants</h3>
-              <small>PDF/CSV/XLSX</small>
-            </div>
-            <input type="file" accept=".pdf,.csv,.xlsx,.xls" />
-            <div class="file-name"></div>
-          </div>
-
-          <!-- 15 -->
-          <div class="tile" data-key="sous_traitants_vigilance">
-            <div class="tile-head">
-              <h3>Attestations de vigilance URSSAF (sous-traitants)</h3>
-              <small>PDF</small>
-            </div>
-            <input type="file" accept=".pdf" multiple />
-            <div class="file-name"></div>
-          </div>
-
-          <!-- 16 -->
-          <div class="tile" data-key="contrats_st">
-            <div class="tile-head">
-              <h3>Contrats de sous-traitance</h3>
-              <small>PDF</small>
-            </div>
-            <input type="file" accept=".pdf" multiple />
-            <div class="file-name"></div>
-          </div>
-
-          <!-- 17 -->
-          <div class="tile" data-key="carte_pro_modele">
-            <div class="tile-head">
-              <h3>Modèle carte professionnelle (entreprise)</h3>
-              <small>PDF</small>
-            </div>
-            <input type="file" accept=".pdf" />
-            <div class="file-name"></div>
-          </div>
-
-          <!-- 18 -->
-          <div class="tile" data-key="rup">
-            <div class="tile-head">
-              <h3>Registre unique du personnel</h3>
-              <small>PDF/CSV/XLSX</small>
-            </div>
-            <input type="file" accept=".pdf,.csv,.xlsx,.xls" />
-            <div class="file-name"></div>
-          </div>
-
-          <!-- 19 -->
-          <div class="tile" data-key="rci">
-            <div class="tile-head">
-              <h3>Registre des contrôles internes</h3>
-              <small>PDF</small>
-            </div>
-            <input type="file" accept=".pdf" />
-            <div class="file-name"></div>
-          </div>
-
-          <!-- 20 -->
-          <div class="tile" data-key="dpae">
-            <div class="tile-head">
-              <h3>Justificatifs DPAE</h3>
-              <small>PDF</small>
-            </div>
-            <input type="file" accept=".pdf" multiple />
-            <div class="file-name"></div>
-          </div>
-
-          <!-- 21 -->
-          <div class="tile" data-key="factures_st">
-            <div class="tile-head">
-              <h3>Factures des sous-traitants</h3>
-              <small>PDF</small>
-            </div>
-            <input type="file" accept=".pdf" multiple />
-            <div class="file-name"></div>
-          </div>
-        </div>
-
-        <div class="actions">
-          <button id="btnAnalyze" class="btn">Analyser les plannings</button>
-          <button id="btnExport" class="btn ghost">Exporter le rapport PDF</button>
-        </div>
-
-        <pre id="output" class="output" hidden></pre>
-      </section>
-
-      <!-- Colonne droite : Nomenclature (inchangée) -->
-      <aside class="aside">
-        <h2>Nomenclature des pièces</h2>
-        <ul class="list">
-          <li>Autorisation d’exercer</li>
-          <li>Agrément dirigeant</li>
-          <li>Attestation d’assurance professionnelle</li>
-          <li>Extrait Kbis</li>
-          <li>Statuts de l’entreprise à jour</li>
-          <li>Déclarations sociales nominatives (DSN)</li>
-          <li>Attestation de vigilance URSSAF à jour</li>
-          <li>Relevés de comptes professionnels (6 mois)</li>
-          <li>Dernière liasse fiscale</li>
-          <li>Grand livre de comptes</li>
-          <li><strong>Plannings des agents (6 mois)</strong></li>
-          <li>Bulletins de paie des agents (6 mois)</li>
-          <li>Factures (6 mois)</li>
-          <li>Liste des sous-traitants</li>
-          <li>Attestations de vigilance URSSAF (sous-traitants)</li>
-          <li>Contrats de sous-traitance</li>
-          <li>Modèle carte professionnelle (entreprise)</li>
-          <li>Registre unique du personnel</li>
-          <li>Registre des contrôles internes</li>
-          <li>Justificatifs DPAE</li>
-          <li>Factures des sous-traitants</li>
-        </ul>
-        <p class="muted">Taille max : 25 Mo par fichier.</p>
-      </aside>
-    </div>
-  </main>
-
-  <footer class="foot wrap">
-    <span>© <span id="year"></span> CSI API</span>
-    <a class="link" href="/docs" target="_blank">Documentation</a>
-  </footer>
-
-  <script src="/static/cnaps.js"></script>
-</body>
-</html>
+<script src="/static/cnaps.js"></script>
+<script>
+  // Sur la home, on ne déclenche pas l’analyse côté API : on redirige vers la page d’analyse
+  document.getElementById("btn-analyze").addEventListener("click", () => {
+    const url = document.getElementById("planning-url").value.trim();
+    const err = document.getElementById("error-status");
+    err.style.display = "none";
+    if (!url) {
+      err.textContent = "❌ Merci de saisir une URL.";
+      err.style.display = "block";
+      return;
+    }
+    // Redirection (comme avant) — la page d’analyse fera l’appel API et affichera la progression
+    window.location.href = "/analyse-planning?u=" + encodeURIComponent(url);
+  });
+</script>
