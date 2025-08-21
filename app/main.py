@@ -1,42 +1,59 @@
 # app/main.py
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.responses import JSONResponse, HTMLResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+from pathlib import Path
+import shutil
 
-# ⚠️ importe les routers APRÈS les imports FastAPI
 from .plannings.router import router as planning_router
 
 app = FastAPI(
-    title="CSI API",
-    version="0.1.0",
+    title="CSI – Contrôle Sécurité",
+    version="1.0.0",
     docs_url="/docs",
     redoc_url="/redoc",
 )
 
-# CORS (ouvre large par défaut ; restreins si tu as des domaines précis)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # ← remplace par ["https://ton-front.example"] si nécessaire
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Routes de base (pour éviter 404 sur /)
-@app.get("/")
-def home():
-    # renvoie un message simple + lien vers /docs
-    return JSONResponse({"status": "ok", "service": "csi-api", "docs": "/docs"})
+# Static & templates
+app.mount("/static", StaticFiles(directory="app/static"), name="static")
+templates = Jinja2Templates(directory="app/templates")
+
+# Page d'accueil (UI)
+@app.get("/", response_class=HTMLResponse)
+def home(request: Request):
+    return templates.TemplateResponse("index.html", {"request": request})
 
 @app.get("/health")
-def root_health():
-    return {"status": "ok", "service": "csi-api", "version": "0.1.0"}
+def health():
+    return {"status": "ok", "service": "csi-api", "docs": "/docs"}
 
-# Erreurs homogènes
+# Optionnel : petit endpoint d’upload “neutre” (stocke en /tmp pour la session)
+@app.post("/upload")
+async def upload_file(file: UploadFile = File(...)):
+    MAX = 25 * 1024 * 1024
+    if file.size and file.size > MAX:
+        raise HTTPException(status_code=400, detail="Fichier trop volumineux (>25 Mo).")
+    tmpdir = Path("/tmp/csi-uploads")
+    tmpdir.mkdir(parents=True, exist_ok=True)
+    dest = tmpdir / file.filename
+    with dest.open("wb") as f:
+        shutil.copyfileobj(file.file, f)
+    return {"ok": True, "filename": file.filename, "size": dest.stat().st_size}
+
+# Routes “plannings”
+app.include_router(planning_router)
+
+# Gestion erreurs génériques (facultatif)
 @app.exception_handler(Exception)
 async def unhandled_error_handler(_req: Request, exc: Exception):
-    # évite de crasher en 500 sans JSON
     return JSONResponse(status_code=500, content={"detail": str(exc)})
-
-# 👉 inclure les routers APRÈS la création de `app`
-app.include_router(planning_router)
