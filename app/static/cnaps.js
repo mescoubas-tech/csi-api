@@ -144,3 +144,8 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 });
+.btn.disabled,
+button:disabled {
+  opacity: .5;
+  cursor: not-allowed;
+}
