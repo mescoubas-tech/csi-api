@@ -13,7 +13,6 @@
   .row{display:flex;gap:12px;margin-top:16px}
   button{cursor:pointer;border:1px solid #2a3a75;background:#1a2a6a;color:#eaf1ff;padding:12px 16px;border-radius:12px}
   button:hover{background:#21347e}
-  .ok{color:var(--ok);margin-top:8px;display:none}
   .err{color:var(--err);margin-top:8px;display:none}
   small{color:var(--muted)}
 </style>
@@ -31,16 +30,13 @@
       <a href="/docs" target="_blank" style="align-self:center;color:var(--accent);text-decoration:none">Docs API →</a>
     </div>
 
-    <div id="upload-status" class="ok">✅ Téléchargement ok</div>
     <div id="error-status" class="err">❌ Erreur</div>
 
     <p><small>Astuce : tu peux aussi appeler directement l’API <code>POST /plannings/analyze</code> (voir Docs).</small></p>
   </div>
 </div>
 
-<script src="/static/cnaps.js"></script>
 <script>
-  // Sur la home, on ne déclenche pas l’analyse côté API : on redirige vers la page d’analyse
   document.getElementById("btn-analyze").addEventListener("click", () => {
     const url = document.getElementById("planning-url").value.trim();
     const err = document.getElementById("error-status");
@@ -50,7 +46,6 @@
       err.style.display = "block";
       return;
     }
-    // Redirection (comme avant) — la page d’analyse fera l’appel API et affichera la progression
     window.location.href = "/analyse-planning?u=" + encodeURIComponent(url);
   });
 </script>
