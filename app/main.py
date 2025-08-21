@@ -1,81 +1,47 @@
-from fastapi import FastAPI, UploadFile, File, Form
+from __future__ import annotations
+
+from pathlib import Path
+
+from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
-import os
+from fastapi.templating import Jinja2Templates
 
-app = FastAPI()
+# --- Répertoires (robuste, quel que soit l'endroit d'exécution) ---
+BASE_DIR = Path(__file__).resolve().parent      # app/
+STATIC_DIR = BASE_DIR / "static"                # app/static
+TEMPLATES_DIR = BASE_DIR / "templates"          # app/templates
 
-# === Création du dossier static si absent ===
-if not os.path.exists("static"):
-    os.makedirs("static")
+# --- Application ---
+app = FastAPI(
+    title="CSI API",
+    version="1.0.0",
+    docs_url="/docs",
+    redoc_url="/redoc",
+)
 
-# Montage des fichiers statiques (CSS, images, etc.)
-app.mount("/static", StaticFiles(directory="static"), name="static")
+# --- Fichiers statiques & templates ---
+app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
-
-# === PAGE D'ACCUEIL ===
+# --- Page d'accueil : interface “ancienne” ---
 @app.get("/", response_class=HTMLResponse)
-async def home():
-    return """
-    <!DOCTYPE html>
-    <html lang="fr">
-    <head>
-        <meta charset="UTF-8">
-        <title>Contrôle Sécurité</title>
-        <link rel="stylesheet" href="/static/cnaps.css">
-    </head>
-    <body>
-        <div class="container">
-            <h1>🛡️ Contrôle Sécurité</h1>
-            <p>Analysez vos documents en toute simplicité.</p>
+def home(request: Request):
+    # Assure-toi que app/templates/index_old.html existe
+    return templates.TemplateResponse("index_old.html", {"request": request})
 
-            <form id="uploadForm">
-                <input type="file" id="fileInput" name="file" accept=".pdf,.png,.jpg" required>
-                <button type="submit">Analyser</button>
-            </form>
-
-            <div id="result"></div>
-        </div>
-
-        <script>
-        const form = document.getElementById("uploadForm");
-        form.addEventListener("submit", async (e) => {
-            e.preventDefault();
-            const fileInput = document.getElementById("fileInput");
-            const formData = new FormData();
-            formData.append("file", fileInput.files[0]);
-
-            const res = await fetch("/analyze", {
-                method: "POST",
-                body: formData
-            });
-
-            const data = await res.json();
-            document.getElementById("result").innerHTML =
-                "<h3>Résultat :</h3><pre>" + JSON.stringify(data, null, 2) + "</pre>";
-        });
-        </script>
-    </body>
-    </html>
-    """
-
-
-# === STATUS (HEALTHCHECK) ===
+# --- Health/Status simple (pour monitoring/render) ---
 @app.get("/status")
-async def status():
-    return {"status": "ok", "service": "csi-api"}
+def status():
+    return {"status": "ok", "service": "csi-api", "docs": "/docs"}
 
-
-# === ANALYSE (Upload de fichier PDF ou image) ===
-@app.post("/analyze")
-async def analyze(file: UploadFile = File(...)):
-    try:
-        content = await file.read()
-        size_kb = len(content) / 1024
-        return {
-            "filename": file.filename,
-            "size_kb": round(size_kb, 2),
-            "status": "fichier reçu et analysé"
-        }
-    except Exception as e:
-        return {"error": str(e)}
+# --- Routes Planning (analyse/export/health) ---
+# Assure-toi que app/plannings/router.py existe et définit `router`
+try:
+    from .plannings.router import router as planning_router
+    app.include_router(planning_router)
+except Exception as e:
+    # On ne crash pas l'app si le module planning est manquant, mais on log l'erreur.
+    # Render affichera l'exception dans les logs au démarrage si besoin.
+    import logging
+    logging.getLogger("uvicorn.error").error("Impossible de monter le routeur 'planning': %s", e)
