@@ -82,3 +82,11 @@ async def post_export_report(request: Request, file: UploadFile = File(...)):
         raise
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+        except Exception as e:
+    msg = str(e)
+    if "Aucun tableau détecté" in msg:
+        raise HTTPException(
+            status_code=400,
+            detail="PDF non exploitable (probablement scanné/image). Fourni un PDF numérique (texte sélectionnable)."
+        )
+    raise HTTPException(status_code=400, detail=msg)
