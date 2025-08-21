@@ -2,8 +2,18 @@
 const $  = (sel, root=document) => root.querySelector(sel);
 const $$ = (sel, root=document) => Array.from(root.querySelectorAll(sel));
 
+// Etat courant : tuile active (dernière où des fichiers ont été choisis)
+let ACTIVE_KEY = "planning";
+
 document.addEventListener("DOMContentLoaded", () => {
-    // Ajoute .jpeg et .jpg à tous les inputs de fichier
+  const btnAnalyze = $("#btnAnalyze");
+  const btnExport  = $("#btnExport");
+  const out        = $("#output");
+
+  // Année pied de page
+  const y = $("#year"); if (y) y.textContent = new Date().getFullYear();
+
+  // Ajoute .jpeg et .jpg à tous les inputs (sans casser l'existant)
   $$('input[type="file"]').forEach(input => {
     const current = (input.getAttribute('accept') || '').trim();
     const extra = '.jpeg,.jpg';
@@ -13,9 +23,20 @@ document.addEventListener("DOMContentLoaded", () => {
       input.setAttribute('accept', current + ',' + extra);
     }
   });
-  $("#year").textContent = new Date().getFullYear();
 
-  // Mapping "clé tuile" -> libellé bouton + endpoints (si dispo)
+  // Assure la présence du badge ✓ dans chaque tuile (si manquant)
+  $$(".tile").forEach(tile => {
+    const head = $(".tile-head", tile);
+    if (head && !$(".ok", head)) {
+      const ok = document.createElement("span");
+      ok.className = "ok";
+      ok.textContent = "✔";
+      ok.hidden = true;
+      head.appendChild(ok);
+    }
+  });
+
+  // Noms lisibles pour le bouton Analyser
   const LABELS = {
     aut: "l’autorisation d’exercer",
     agd: "l’agrément dirigeant",
@@ -40,142 +61,103 @@ document.addEventListener("DOMContentLoaded", () => {
     factures_st: "les factures des sous-traitants",
   };
 
-  // Seuls les plannings sont branchés pour le moment
-  const ENDPOINTS = {
-    planning: {
-      analyze: "/planning/analyze",
-      export:  "/planning/export/report",
-    },
-    // d'autres viendront ici: dsn: { analyze: "/dsn/analyze", ... }
-  };
-
-  // Etat courant : dernière tuile qui a reçu un fichier
-  let ACTIVE_KEY = "planning";
-
-  const btnAnalyze = $("#btnAnalyze");
-  const btnExport  = $("#btnExport");
-  const out        = $("#output");
-
   function setAnalyzeLabel(key) {
     const lib = LABELS[key] || "la sélection";
     btnAnalyze.textContent = `Analyser ${lib}`;
     ACTIVE_KEY = key;
 
-    // Export PDF uniquement pour les plannings
+    // Export PDF uniquement pour plannings
     const enableExport = key === "planning";
     btnExport.disabled = !enableExport;
-    btnExport.title    = enableExport ? "" : "Export PDF disponible pour les plannings";
+    btnExport.title    = enableExport ? "" : "Export PDF disponible uniquement pour les plannings";
     btnExport.classList.toggle("disabled", !enableExport);
   }
 
-  // Affiche le nom + coche verte quand on choisit un fichier,
-  // et devient la tuile active (donc le bouton change).
+  // Affiche nom(s) fichier(s) + coche verte + devient tuile active
   $$(".tile").forEach(tile => {
     const input  = $("input[type=file]", tile);
     const nameEl = $(".file-name", tile);
     const ok     = $(".ok", tile);
 
+    if (!input) return;
+
     input.addEventListener("change", () => {
       const files = Array.from(input.files || []);
-      nameEl.textContent = files.map(f => f.name).join(", ") || "aucun fichier sélectionné";
+      if (nameEl) {
+        nameEl.textContent = files.map(f => f.name).join(", ") || "aucun fichier sélectionné";
+      }
       if (ok) ok.hidden = files.length === 0;
 
-      // si on a sélectionné au moins un fichier, cette tuile devient l'action courante
       if (files.length > 0) {
         setAnalyzeLabel(tile.dataset.key);
       }
     });
   });
 
-  // Label initial (plannings par défaut)
+  // Label initial
   setAnalyzeLabel(ACTIVE_KEY);
 
-  // --- Action ANALYZE (dynamique) ---
+  // --- Action ANALYZE ---
   btnAnalyze.addEventListener("click", async () => {
     const tile  = $(`.tile[data-key="${ACTIVE_KEY}"]`);
-    const input = $('input[type=file]', tile);
+    const input = tile ? $('input[type=file]', tile) : null;
+    if (!out) return;
+
     out.hidden  = false;
 
-    if (!input.files || input.files.length === 0) {
+    if (!input || !input.files || input.files.length === 0) {
       out.textContent = "Veuillez sélectionner un fichier pour cette rubrique.";
       return;
     }
 
-        // --- Action ANALYZE (dynamique) ---
-  btnAnalyze.addEventListener("click", async () => {
-    const tile  = $(`.tile[data-key="${ACTIVE_KEY}"]`);
-    const input = $('input[type=file]', tile);
-    out.hidden  = false;
-
-    if (!input.files || input.files.length === 0) {
-      out.textContent = "Veuillez sélectionner un fichier pour cette rubrique.";
-      return;
-    }
-
-    // Si ce sont des plannings -> on ouvre la page HTML dédiée
+    // Cas PLANNING : on POSTe et on ouvre la page de résultat dans un nouvel onglet
     if (ACTIVE_KEY === "planning") {
-      // créer un formulaire éphémère pour POSTer le fichier et ouvrir un nouvel onglet
-      const form = document.createElement("form");
-      form.method = "POST";
-      form.enctype = "multipart/form-data";
-      form.action = "/planning/analyze/html";
-      form.target = "_blank";
+      try {
+        out.textContent = "Analyse en cours…";
+        const form = new FormData();
+        form.append("file", input.files[0]);
 
-      const fileField = input.cloneNode();
-      // on doit réutiliser le FileList sélectionné, ce n'est pas copiable directement :
-      // astuce : on passe par DataTransfer
-      const dt = new DataTransfer();
-      dt.items.add(input.files[0]);
-      fileField.files = dt.files;
-      fileField.name = "file";
-      fileField.style.display = "none";
+        const r = await fetch("/planning/analyze/html", { method: "POST", body: form });
+        const html = await r.text();
 
-      form.appendChild(fileField);
-      document.body.appendChild(form);
-      form.submit();
-      form.remove();
+        if (!r.ok) {
+          out.textContent = `Erreur d'analyse: ${html}`;
+          return;
+        }
 
-      out.textContent = "Ouverture du rapport dans un nouvel onglet…";
+        const win = window.open("", "_blank");
+        if (!win) {
+          out.textContent = "La fenêtre de résultat a été bloquée par le navigateur. Autorisez les pop-ups pour ce site.";
+          return;
+        }
+        win.document.open();
+        win.document.write(html);
+        win.document.close();
+
+        out.textContent = "Rapport ouvert dans un nouvel onglet.";
+      } catch (e) {
+        out.textContent = "Erreur: " + (e && e.message ? e.message : e);
+      }
       return;
     }
 
-    // Pour les autres catégories (en attendant leurs endpoints)
+    // Autres rubriques : message temporaire (branchements futurs)
     out.textContent = `Analyse pour « ${LABELS[ACTIVE_KEY] || ACTIVE_KEY} » : bientôt disponible.`;
   });
 
-    // Endpoint ?
-    const cfg = ENDPOINTS[ACTIVE_KEY];
-    if (!cfg || !cfg.analyze) {
-      out.textContent = `Analyse pour « ${LABELS[ACTIVE_KEY] || ACTIVE_KEY} » : bientôt disponible.`;
-      return;
-    }
-
-    // Envoi
-    try {
-      out.textContent = "Analyse en cours…";
-      const form = new FormData();
-      form.append("file", input.files[0]); // 1 fichier pour l’instant
-
-      const r = await fetch(cfg.analyze, { method: "POST", body: form });
-      const t = await r.text();
-      try { out.textContent = JSON.stringify(JSON.parse(t), null, 2); }
-      catch { out.textContent = t; }
-    } catch (e) {
-      out.textContent = "Erreur: " + e.message;
-    }
-  });
-
-  // --- Action EXPORT (seulement plannings) ---
+  // --- Action EXPORT (PDF pour plannings) ---
   btnExport.addEventListener("click", async () => {
     const tile  = $('.tile[data-key="planning"]');
-    const input = $('input[type=file]', tile);
+    const input = tile ? $('input[type=file]', tile) : null;
+    if (!out) return;
+
     out.hidden  = false;
 
     if (btnExport.disabled) {
       out.textContent = "L’export PDF est disponible uniquement pour les plannings.";
       return;
     }
-    if (!input.files || input.files.length === 0) {
+    if (!input || !input.files || input.files.length === 0) {
       out.textContent = "Veuillez sélectionner un fichier de planning.";
       return;
     }
@@ -184,20 +166,15 @@ document.addEventListener("DOMContentLoaded", () => {
       out.textContent = "Génération du rapport…";
       const form = new FormData();
       form.append("file", input.files[0]);
-      const r = await fetch(ENDPOINTS.planning.export, { method: "POST", body: form });
-      if (!r.ok) { out.textContent = "Erreur: " + await r.text(); return; }
+      const r = await fetch("/planning/export/report", { method: "POST", body: form });
+      if (!r.ok) { out.textContent = "Erreur: " + (await r.text()); return; }
       const blob = await r.blob();
       const url  = URL.createObjectURL(blob);
       const a    = document.createElement('a');
       a.href = url; a.download = 'rapport_audit_plannings.pdf'; a.click();
       out.textContent = "Rapport téléchargé.";
     } catch (e) {
-      out.textContent = "Erreur: " + e.message;
+      out.textContent = "Erreur: " + (e && e.message ? e.message : e);
     }
   });
 });
-.btn.disabled,
-button:disabled {
-  opacity: .5;
-  cursor: not-allowed;
-}
