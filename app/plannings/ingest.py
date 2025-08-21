@@ -1,8 +1,24 @@
-import io, re
-import pandas as pd
-import pdfplumber
+import pytesseract
 from PIL import Image
-import easyocr
+import pdfplumber
+
+def extract_text_from_pdf(file_path: str) -> str:
+    """Extrait du texte brut d’un PDF via pdfplumber ou OCR si nécessaire"""
+    text = ""
+
+    # Essayer lecture directe
+    with pdfplumber.open(file_path) as pdf:
+        for page in pdf.pages:
+            text += page.extract_text() or ""
+
+    # Si aucun texte détecté, passer par OCR
+    if not text.strip():
+        with pdfplumber.open(file_path) as pdf:
+            for page in pdf.pages:
+                img = page.to_image(resolution=300).original
+                text += pytesseract.image_to_string(img, lang="fra")
+
+    return text
 
 # ↓ NEW: lecture PDF
 import pdfplumber
