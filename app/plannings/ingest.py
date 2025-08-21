@@ -1,154 +1,186 @@
-# app/plannings/ingest.py
-import io
+from __future__ import annotations
+
+from io import BytesIO
 import re
-from typing import List
+from typing import Iterable
+
 import pandas as pd
 import pdfplumber
+from fastapi import UploadFile, HTTPException
 
-REQUIRED_COLS = ["agent_id", "date", "start", "end"]
+from .config import SETTINGS
 
-COLUMN_ALIASES = {
-    "agent": "agent_id", "matricule": "agent_id", "id": "agent_id",
-    "collaborateur": "agent_id", "intervenant": "agent_id",
-    "jour": "date", "date_jour": "date",
-    "debut": "start", "début": "start", "heure_debut": "start", "heure début": "start",
-    "fin": "end", "heure_fin": "end", "heure fin": "end",
-    "pause": "pause_min", "pause (min)": "pause_min",
-    "nom": "nom", "prénom": "prenom", "prenom": "prenom",
-    "site": "site", "employeur": "employer", "entreprise": "employer",
-    "derog12h": "has_derogation_daily_12h", "derog_12h": "has_derogation_daily_12h",
-    "mineur": "is_minor", "nuit": "is_night_worker",
-}
 
-OPTIONAL_COLS = [
-    "pause_min", "nom", "prenom", "site", "employer",
-    "has_derogation_daily_12h", "is_minor", "is_night_worker"
+# Colonnes attendues après normalisation
+NORMALIZED_COLS = [
+    "employee_id", "employee_name",
+    "date", "start", "end",
+    "site", "role"
 ]
 
-TIME_PAT = re.compile(r"^\s*(\d{1,2})[:hH\.](\d{2})\s*$")
 
-def _norm_colname(c: str) -> str:
-    c = (c or "").strip().lower()
-    c = c.replace("\n", " ").replace("\r", " ")
-    c = re.sub(r"\s+", " ", c)
-    return COLUMN_ALIASES.get(c, c)
+def _is_pdf(filename: str) -> bool:
+    return filename.lower().endswith(".pdf")
 
-def _normalize_columns(df: pd.DataFrame) -> pd.DataFrame:
-    df = df.copy()
-    df.columns = [_norm_colname(str(c)) for c in df.columns]
 
-    def fix_time(v):
-        if pd.isna(v): return v
-        s = str(v).strip()
-        m = TIME_PAT.match(s)
-        if m:
-            hh = int(m.group(1)); mm = int(m.group(2))
-            return f"{hh:02d}:{mm:02d}"
-        if s.isdigit():
-            try:
-                hh = int(s)
-                if 0 <= hh <= 24:
-                    return f"{hh:02d}:00"
-            except: pass
-        return s
+def _is_csv(filename: str) -> bool:
+    return filename.lower().endswith(".csv")
 
-    for col in ["start", "end"]:
-        if col in df.columns:
-            df[col] = df[col].map(fix_time)
 
-    if "pause_min" in df.columns:
-        def to_min(v):
-            if pd.isna(v): return 0
-            s = str(v).strip()
-            m = TIME_PAT.match(s)
-            if m:
-                return int(m.group(1)) * 60 + int(m.group(2))
-            if s.isdigit():
-                return int(s)
-            return 0
-        df["pause_min"] = df["pause_min"].map(to_min)
+def _is_excel(filename: str) -> bool:
+    return filename.lower().endswith((".xlsx", ".xls"))
 
-    if "agent_id" not in df.columns:
-        if "nom" in df.columns or "prenom" in df.columns:
-            df["agent_id"] = (
-                df.get("nom", "").astype(str).str.strip() + "_" +
-                df.get("prenom", "").astype(str).str.strip()
-            ).str.strip("_")
-        else:
-            df["agent_id"] = df.index.astype(str)
 
-    df["pause_min"] = df.get("pause_min", 0).fillna(0).astype(int)
-    for b in ["has_derogation_daily_12h", "is_minor", "is_night_worker"]:
-        if b in df.columns:
-            df[b] = (
-                df[b].astype(str).str.strip().str.lower()
-                .isin(["1", "true", "vrai", "yes", "oui"])
-            )
-
-    for col in OPTIONAL_COLS:
-        if col not in df.columns:
-            df[col] = None
-
-    missing = [c for c in REQUIRED_COLS if c not in df.columns]
-    if missing:
-        raise ValueError(f"Colonnes minimales manquantes: {missing}. Colonnes trouvées: {list(df.columns)}")
-
-    return df[[*REQUIRED_COLS, *OPTIONAL_COLS]]
-
-def _read_csv_or_excel(file_bytes: bytes, filename: str) -> pd.DataFrame:
-    name = filename.lower()
-    if name.endswith(".csv"):
-        df = pd.read_csv(io.BytesIO(file_bytes))
-    elif name.endswith(".xlsx") or name.endswith(".xls"):
-        df = pd.read_excel(io.BytesIO(file_bytes))
-    else:
-        raise ValueError("Unsupported file format. Use CSV or Excel.")
-    return _normalize_columns(df)
-
-from typing import List
-def _merge_pdf_tables(tables: List[pd.DataFrame]) -> pd.DataFrame:
-    dfs = []
-    for raw in tables:
-        if raw is None or raw.empty:
-            continue
-        df = raw.copy()
+def _parse_time(txt: str | float | int | None) -> pd.Timestamp | None:
+    """Convertit '08:30', '8h30', 8.5, etc. vers Timestamp (au 1900-01-01)."""
+    if txt is None or (isinstance(txt, float) and pd.isna(txt)):
+        return None
+    s = str(txt).strip()
+    if not s:
+        return None
+    s = s.replace("H", "h")
+    # 8h or 8h30 -> 8:00 / 8:30
+    s = re.sub(r"^(\d{1,2})h$", r"\1:00", s)
+    s = re.sub(r"^(\d{1,2})h(\d{2})$", r"\1:\2", s)
+    # 0830 -> 08:30
+    if re.fullmatch(r"\d{3,4}", s):
+        s = f"{s[:-2]}:{s[-2:]}"
+    try:
+        t = pd.to_datetime(s).time()
+        return pd.Timestamp.combine(pd.Timestamp(1900, 1, 1), t)
+    except Exception:
+        # Excel times (0.3541666…)
         try:
-            df.columns = [str(c).strip() for c in df.iloc[0]]
-            df = df.iloc[1:].reset_index(drop=True)
+            v = float(s)
+            # 1 jour = 24h -> v * 24 heures
+            minutes = round(v * 24 * 60)
+            hh, mm = divmod(minutes, 60)
+            hh %= 24
+            return pd.Timestamp(1900, 1, 1, hh, mm)
+        except Exception:
+            return None
+
+
+def _parse_date(txt: str) -> pd.Timestamp | None:
+    if txt is None or (isinstance(txt, float) and pd.isna(txt)):
+        return None
+    s = str(txt).strip()
+    for fmt in SETTINGS.RULES.date_formats:
+        try:
+            return pd.to_datetime(s, format=fmt, dayfirst=True)
         except Exception:
             pass
-        df = df.dropna(axis=1, how="all").dropna(how="all")
-        if not df.empty:
-            dfs.append(df)
-    if not dfs:
-        raise ValueError("PDF lu mais tableaux vides. Vérifier la structure du document.")
-    merged = pd.concat(dfs, ignore_index=True)
-    return _normalize_columns(merged)
+    # fallback auto
+    try:
+        return pd.to_datetime(s, dayfirst=True, errors="coerce")
+    except Exception:
+        return None
 
-def _read_pdf_tables(file_bytes: bytes) -> pd.DataFrame:
-    """Extraction de tableaux sur PDF numériques (pas d’OCR)."""
-    tables: List[pd.DataFrame] = []
-    with pdfplumber.open(io.BytesIO(file_bytes)) as pdf:
+
+def _normalize_columns(df: pd.DataFrame) -> pd.DataFrame:
+    """Essaie de retrouver les colonnes utiles malgré des intitulés variables."""
+    colmap = {c.lower().strip(): c for c in df.columns}
+    def find(*cands: Iterable[str]) -> str | None:
+        for cand in cands:
+            lc = cand.lower()
+            if lc in colmap: return colmap[lc]
+            # fuzzy
+            for k in colmap:
+                if lc in k:
+                    return colmap[k]
+        return None
+
+    cid   = find("matricule", "id", "employee_id", "numéro", "code")
+    cnom  = find("nom", "salarié", "agent", "employee", "collaborateur")
+    cdate = find("date", "jour", "day")
+    cstart= find("debut", "début", "start", "heure début", "heure_debut", "h début")
+    cend  = find("fin", "end", "heure fin", "heure_fin", "h fin")
+    csite = find("site", "lieu", "client", "poste")
+    crole = find("role", "rôle", "fonction", "position")
+
+    take = {}
+    take["employee_id"] = df.get(cid) if cid else None
+    take["employee_name"] = df.get(cnom) if cnom else None
+    take["date"] = df.get(cdate) if cdate else None
+    take["start"] = df.get(cstart) if cstart else None
+    take["end"] = df.get(cend) if cend else None
+    take["site"] = df.get(csite) if csite else None
+    take["role"] = df.get(crole) if crole else None
+
+    out = pd.DataFrame(take)
+    # fallback : si pas d’ID, utilise le nom
+    if "employee_id" in out and out["employee_id"].isna().all():
+        out["employee_id"] = out["employee_name"]
+    return out
+
+
+def _read_csv_auto(content: bytes) -> pd.DataFrame:
+    # essaie ; , \t
+    for sep in [",", ";", "\t", "|"]:
+        try:
+            df = pd.read_csv(BytesIO(content), sep=sep, engine="python")
+            if len(df.columns) > 1:
+                return df
+        except Exception:
+            continue
+    # fallback
+    return pd.read_csv(BytesIO(content), engine="python")
+
+
+def _read_pdf_tables(content: bytes) -> pd.DataFrame:
+    rows = []
+    with pdfplumber.open(BytesIO(content)) as pdf:
         for page in pdf.pages:
-            try:
-                page_tables = page.extract_tables() or []
-                for t in page_tables:
-                    if t:
-                        tables.append(pd.DataFrame(t))
-                if not page_tables:
-                    t = page.extract_table()
-                    if t:
-                        tables.append(pd.DataFrame(t))
-            except Exception:
-                continue
-    if not tables:
-        raise ValueError("Aucun tableau détecté dans le PDF (probablement un scan).")
-    return _merge_pdf_tables(tables)
+            tables = page.extract_tables() or []
+            for tbl in tables:
+                # première ligne = en-têtes ? si plausible on la garde
+                if tbl and len(tbl) > 1:
+                    header = tbl[0]
+                    for line in tbl[1:]:
+                        rows.append(dict(zip(header, line)))
+    if not rows:
+        raise HTTPException(400, "Le PDF ne contient pas de tableau exploitable (pas d’OCR).")
+    return pd.DataFrame(rows)
 
-def load_schedule(file_bytes: bytes, filename: str) -> pd.DataFrame:
-    name = filename.lower()
-    if name.endswith(".csv") or name.endswith(".xlsx") or name.endswith(".xls"):
-        return _read_csv_or_excel(file_bytes, filename)
-    if name.endswith(".pdf"):
-        return _read_pdf_tables(file_bytes)
-    raise ValueError("Unsupported file format. Use CSV, Excel, or PDF.")
+
+def load_schedule(file: UploadFile) -> pd.DataFrame:
+    """Lit un planning multi-formats et renvoie un DataFrame normalisé."""
+    content = file.file.read()
+    if _is_csv(file.filename):
+        df = _read_csv_auto(content)
+    elif _is_excel(file.filename):
+        df = pd.read_excel(BytesIO(content))
+    elif _is_pdf(file.filename):
+        df = _read_pdf_tables(content)
+    else:
+        raise HTTPException(400, "Format non supporté (utiliser .csv, .xlsx, .pdf numérique).")
+
+    if df.empty:
+        raise HTTPException(400, "Fichier vide ou illisible.")
+
+    df = _normalize_columns(df)
+
+    # Nettoyages/parsing
+    df["date"]  = df["date"].apply(_parse_date)
+    df["start"] = df["start"].apply(_parse_time)
+    df["end"]   = df["end"].apply(_parse_time)
+
+    # drop lignes incomplètes
+    df = df.dropna(subset=["employee_id", "date", "start", "end"]).copy()
+
+    # calcul durée (en heures, gère post-minuit)
+    def _dur(row):
+        s, e = row["start"].time(), row["end"].time()
+        s_ts, e_ts = row["start"], row["end"]
+        # si end < start, on considère dépassement après minuit
+        delta = (e_ts - s_ts).total_seconds()
+        if delta < 0:
+            delta += 24 * 3600
+        return round(delta / 3600.0, 2)
+
+    df["hours"] = df.apply(_dur, axis=1)
+
+    # clé jour
+    df["day"] = df["date"].dt.date
+
+    return df[NORMALIZED_COLS + ["hours", "day"]]
