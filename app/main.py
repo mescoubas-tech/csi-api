@@ -8,9 +8,9 @@ from fastapi.templating import Jinja2Templates
 
 from app.plannings.router import router as planning_router
 
-app = FastAPI(title="CSI API", version="1.6.4")
+app = FastAPI(title="CSI API", version="1.6.5")
 
-# Chemins absolus depuis ce fichier (évite les soucis en prod)
+# chemins absolus robustes
 BASE_DIR = Path(__file__).resolve().parent
 TEMPLATES_DIR = BASE_DIR / "templates"
 STATIC_DIR = BASE_DIR / "static"
@@ -18,13 +18,13 @@ STATIC_DIR = BASE_DIR / "static"
 # CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # restreins si besoin
+    allow_origins=["*"],   # restreins si besoin
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Static & templates (montage conditionnel pour ne pas crasher si le dossier n'existe pas)
+# Static & templates
 if STATIC_DIR.exists():
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
@@ -33,18 +33,21 @@ templates = Jinja2Templates(directory=str(TEMPLATES_DIR)) if TEMPLATES_DIR.exist
 # API
 app.include_router(planning_router)
 
-# Healthcheck
+# Health
 @app.get("/health", include_in_schema=False)
 async def health():
     return {"status": "ok"}
 
-# Page d’accueil (UI)
+# Home (UI)
 @app.get("/", include_in_schema=False)
 async def home(request: Request):
-    index_path = TEMPLATES_DIR / "index.html"
-    if templates and index_path.exists():
+    if templates and (TEMPLATES_DIR / "index.html").exists():
         return templates.TemplateResponse("index.html", {"request": request})
-    # Fallback lisible si le template manque (évite le 500)
-    return HTMLResponse(
-        """
-        <!do
+    html = (
+        "<!doctype html><meta charset='utf-8'>"
+        "<title>CSI API</title>"
+        "<style>body{font:16px/1.6 system-ui;padding:32px}</style>"
+        "<h1>CSI API</h1>"
+        "<p>UI non trouvée (app/templates/index.html absent).</p>"
+        "<ul>"
+        "<li>Vérifie que <code>app/templates/index.html</code> est commité.</li>"
