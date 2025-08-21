@@ -21,3 +21,9 @@ async def home(request: Request):
 @app.get("/status")
 async def status():
     return {"status": "ok", "service": "csi-api", "docs": "/docs"}
+
+@app.post("/analyze")
+async def analyze(file: UploadFile = File(...)):
+    content = await file.read()
+    size_kb = len(content) / 1024
+    return {"filename": file.filename, "size_kb": round(size_kb, 2)}
