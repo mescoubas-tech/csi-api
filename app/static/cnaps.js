@@ -12,3 +12,5 @@ export function showOk(msg) {
   el.textContent = "✅ " + (msg || "OK");
   el.style.display = "block";
 }
+// fichier placeholder pour s'assurer que /static existe
+console.log("cnaps.js chargé");
