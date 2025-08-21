@@ -8,7 +8,7 @@ from fastapi.templating import Jinja2Templates
 
 from app.plannings.router import router as planning_router
 
-app = FastAPI(title="CSI API", version="1.6.5")
+app = FastAPI(title="CSI API", version="1.6.6")
 
 # chemins absolus robustes
 BASE_DIR = Path(__file__).resolve().parent
@@ -18,7 +18,7 @@ STATIC_DIR = BASE_DIR / "static"
 # CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],   # restreins si besoin
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -43,11 +43,33 @@ async def health():
 async def home(request: Request):
     if templates and (TEMPLATES_DIR / "index.html").exists():
         return templates.TemplateResponse("index.html", {"request": request})
-    html = (
-        "<!doctype html><meta charset='utf-8'>"
-        "<title>CSI API</title>"
-        "<style>body{font:16px/1.6 system-ui;padding:32px}</style>"
-        "<h1>CSI API</h1>"
-        "<p>UI non trouvée (app/templates/index.html absent).</p>"
-        "<ul>"
-        "<li>Vérifie que <code>app/templates/index.html</code> est commité.</li>"
+    html_parts = [
+        "<!doctype html><meta charset='utf-8'>",
+        "<title>CSI API</title>",
+        "<style>body{font:16px/1.6 system-ui;padding:32px}</style>",
+        "<h1>CSI API</h1>",
+        "<p>UI non trouvée (app/templates/index.html absent).</p>",
+        "<ul>",
+        "<li>Vérifie que <code>app/templates/index.html</code> est commité.</li>",
+        "<li>Vérifie que <code>app/static/</code> existe.</li>",
+        "<li><a href='/docs'>Docs OpenAPI</a></li>",
+        "</ul>",
+    ]
+    return HTMLResponse("\n".join(html_parts), status_code=200)
+
+# Page d’analyse (UI)
+@app.get("/analyse-planning", include_in_schema=False)
+async def analyse_planning_page(request: Request):
+    if templates and (TEMPLATES_DIR / "analyse_planning.html").exists():
+        return templates.TemplateResponse("analyse_planning.html", {"request": request})
+    return HTMLResponse(
+        "<p>Page d’analyse introuvable (app/templates/analyse_planning.html).</p>",
+        status_code=200,
+    )
+
+# Page de test optionnelle
+@app.get("/_landing", include_in_schema=False)
+async def landing():
+    return HTMLResponse(
+        "<h1>CSI API</h1><p>Service en ligne ✅</p><p><a href='/'>UI</a> • <a href='/docs'>Docs</a></p>"
+    )
