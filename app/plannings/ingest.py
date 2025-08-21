@@ -1,5 +1,8 @@
 import io, re
 import pandas as pd
+import pdfplumber
+from PIL import Image
+import easyocr
 
 # ↓ NEW: lecture PDF
 import pdfplumber
