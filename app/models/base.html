@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <title>{% block title %}CSI{% endblock %}</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <link rel="stylesheet" href="/static/style.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="container">
+        <div class="brand">CSI</div>
+        <nav class="tabs">
+          <a href="/" class="{% if request.url.path=='/' %}active{% endif %}">Accueil</a>
+          <a href="/analyse-planning" class="{% if request.url.path.startswith('/analyse-planning') %}active{% endif %}">Analyse planning</a>
+          <a href="/cnaps" class="{% if request.url.path.startswith('/cnaps') %}active{% endif %}">CNAPS</a>
+          <a href="/telechargements" class="{% if request.url.path.startswith('/telechargements') %}active{% endif %}">Téléchargements</a>
+          <a href="/docs" target="_blank">Docs</a>
+        </nav>
+      </div>
+    </header>
+
+    <main class="container">
+      {% block content %}{% endblock %}
+    </main>
+
+    <footer class="footer">
+      <div class="container muted">Version : {{ version }}</div>
+    </footer>
+  </body>
+</html>
