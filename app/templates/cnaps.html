@@ -1,76 +1,35 @@
 {% extends "base.html" %}
 {% block title %}CSI — CNAPS{% endblock %}
 {% block content %}
-  <h1>Analyse de conformité CNAPS — Téléversement</h1>
+  <h1>CNAPS — Téléversement et gestion des pièces</h1>
 
-  <div class="grid">
-    <div class="col">
-      <div id="cards" class="cards"></div>
-      <p class="muted small">Taille max : 25 Mo par fichier.</p>
-    </div>
-    <aside class="col">
-      <div class="card">
-        <h3>Nomenclature des pièces</h3>
-        <ul id="nomenclature" class="small"></ul>
-      </div>
-    </aside>
+  <div class="card">
+    <ul id="cnaps-list" class="small"></ul>
   </div>
 
   <script>
-    const DOCS = {{ DOCS | tojson }};
+    // Nomenclature CNAPS (incluant les nouveaux items)
+    const DOCS = [
+      { key:"autorisation_exercer",       label:"Autorisation d’exercer" },
+      { key:"agrement_dirigeant",         label:"Agrément dirigeant" },
+      { key:"attestation_assurance",      label:"Attestation d’assurance professionnelle" },
+      { key:"kbis",                        label:"Extrait Kbis" },
+      { key:"statuts_maj",                label:"Statuts de l’entreprise à jour" },
+      { key:"dsn",                         label:"Déclarations sociales nominatives (DSN)" },
+      { key:"vigilance_urssaf",           label:"Attestation de vigilance URSSAF" },
+      { key:"releves_comptes_6m",         label:"Relevés de comptes (6 mois)" },
+      { key:"derniere_liasse",            label:"Dernière liasse fiscale" },
+      { key:"grand_livre",                label:"Grand livre de comptes" },
 
-    function cardHtml(d, files){
-      return `
-      <div class="card ${files.length>0?'ok':''}" id="card-${d.key}">
-        <h3>${d.label} <span class="muted small">(${d.ext.join('/').toUpperCase()})</span> <span class="state">${files.length>0?'✓':''}</span></h3>
-        <div class="files">${
-          files.length===0 ? "<span class='muted small'>Aucun fichier</span>"
-            : files.map(f => `• <a href="/cnaps/file/${d.key}/${f.name}" target="_blank">${f.name}</a>
-              <span class='muted small'>(${f.size_fmt}, ${f.mtime_h})</span>
-              <button class='small' onclick="removeFile('${d.key}','${f.name.replace(/'/g,"\\'")}')">Supprimer</button>`
-            ).join("<br>")
-        }</div>
-        <div class="actions">
-          <input type="file" id="file-${d.key}" style="display:none" accept="${d.ext.map(e=>'.'+e).join(',')}">
-          <button onclick="chooseFile('${d.key}')">Choisir un fichier</button>
-          <button class="muted small" onclick="refresh()">Rafraîchir</button>
-        </div>
-      </div>`;
-    }
+      // *** Nouveaux éléments demandés ***
+      { key:"bulletins_paie",             label:"Bulletins de paye" },
+      { key:"registre_unique_personnel",  label:"Registre unique du personnel" },
+      { key:"modele_carte_pro",           label:"Modèle carte professionnelle propre à l’entreprise" },
+      { key:"factures_6m",                label:"Factures sur les 6 derniers mois" },
+      { key:"captures_site_web",          label:"Captures de toutes les pages du site internet" },
+    ];
 
-    function chooseFile(kind){
-      const input = document.getElementById('file-'+kind);
-      input.onchange = async (ev)=>{
-        if(!ev.target.files || ev.target.files.length===0) return;
-        const f = ev.target.files[0];
-        const fd = new FormData();
-        fd.append('kind', kind);
-        fd.append('file', f);
-        try{
-          const r = await fetch('/cnaps/upload', { method:'POST', body: fd });
-          if(!r.ok){ const j=await r.json().catch(()=>({detail:'Erreur'})); throw new Error(j.detail||'Erreur upload'); }
-          refresh();
-        }catch(e){ alert(e.message||e); }
-        finally{ ev.target.value=''; }
-      };
-      input.click();
-    }
-
-    async function removeFile(kind, name){
-      if(!confirm('Supprimer '+name+' ?')) return;
-      const r = await fetch('/cnaps/file/'+encodeURIComponent(kind)+'/'+encodeURIComponent(name), { method:'DELETE' });
-      if(r.ok) refresh(); else alert('Suppression impossible');
-    }
-
-    async function refresh(){
-      const r = await fetch('/cnaps/list'); const j = await r.json();
-      const wrap = document.getElementById('cards'); wrap.innerHTML='';
-      DOCS.forEach(d=>{
-        const files = (j.data && j.data[d.key]) || [];
-        wrap.insertAdjacentHTML('beforeend', cardHtml(d, files));
-      });
-      document.getElementById('nomenclature').innerHTML = DOCS.map(d=>`<li>${d.label}</li>`).join('');
-    }
-    refresh();
+    const ul = document.getElementById('cnaps-list');
+    ul.innerHTML = DOCS.map(d => `<li data-key="${d.key}">• ${d.label}</li>`).join('');
   </script>
 {% endblock %}
