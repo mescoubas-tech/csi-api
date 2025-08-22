@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}CSI — Téléchargements{% endblock %}
+{% block content %}
+  <h1>Tous les dossiers à télécharger</h1>
+  <div class="row">
+    <button id="btn-refresh">Rafraîchir</button>
+    <a class="btn" href="/downloads/all.zip">Télécharger tout (ZIP)</a>
+    <button id="btn-zip-selected">Télécharger la sélection (ZIP)</button>
+  </div>
+  <div id="status" class="muted">Chargement…</div>
+  <div class="tablewrap">
+    <table id="tbl">
+      <thead><tr>
+        <th><input type="checkbox" id="select-all"></th>
+        <th>Nom</th><th>Taille</th><th>Modifié</th><th>Télécharger</th>
+      </tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <script>
+    const tbody = document.querySelector('#tbl tbody');
+    const statusEl = document.getElementById('status');
+
+    function sizeFmt(b){ if(b<1024)return b+' o'; if(b<1024*1024)return (b/1024).toFixed(1)+' Ko'; if(b<1024**3)return (b/1024**2).toFixed(1)+' Mo'; return (b/1024**3).toFixed(2)+' Go'; }
+
+    async function load(){
+      statusEl.textContent='Chargement…'; tbody.innerHTML='';
+      try{
+        const r = await fetch('/downloads/list'); const j = await r.json();
+        const rows = j.files||[];
+        if(rows.length===0){ statusEl.textContent='Aucun fichier.'; return; }
+        statusEl.textContent = rows.length+' fichier(s)';
+        rows.forEach(f=>{
+          const tr = document.createElement('tr');
+          tr.innerHTML =
+            `<td><input type="checkbox" class="sel" data-name="${f.name}"></td>`+
+            `<td>${f.name}</td>`+
+            `<td>${f.size_fmt}</td>`+
+            `<td>${f.mtime_h}</td>`+
+            `<td><a href="/downloads/file/${encodeURIComponent(f.name)}">Télécharger</a></td>`;
+          tbody.appendChild(tr);
+        });
+      }catch(e){ statusEl.textContent='Erreur: '+(e.message||e); }
+    }
+
+    document.getElementById('btn-refresh').addEventListener('click', load);
+    document.getElementById('select-all').addEventListener('change', e=>{
+      document.querySelectorAll('input.sel').forEach(cb=>cb.checked=e.target.checked);
+    });
+    document.getElementById('btn-zip-selected').addEventListener('click', async ()=>{
+      const names=[...document.querySelectorAll('input.sel:checked')].map(cb=>cb.dataset.name);
+      if(names.length===0){ alert('Sélectionne au moins un fichier.'); return; }
+      try{
+        const r = await fetch('/downloads/zip',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({names})});
+        if(!r.ok){ const j=await r.json().catch(()=>({detail:'Erreur'})); throw new Error(j.detail||'Erreur zip'); }
+        const blob = await r.blob(); const url = URL.createObjectURL(blob);
+        const a = document.createElement('a'); a.href=url; a.download='selection.zip'; a.click(); URL.revokeObjectURL(url);
+      }catch(e){ alert(e.message||e); }
+    });
+
+    load();
+  </script>
+{% endblock %}
