@@ -2,7 +2,7 @@ from __future__ import annotations
 import os, io, re, json
 from pathlib import Path
 from datetime import datetime
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -10,11 +10,12 @@ from fastapi.responses import FileResponse, StreamingResponse, HTMLResponse, JSO
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from jinja2 import TemplateNotFound
+from pydantic import BaseModel
 
 # =========================================================
 # Version / App
 # =========================================================
-VERSION = "UI-Blanche-Autoseed-1.0"
+VERSION = "UI-Conformite-1.1"
 app = FastAPI(title="CSI API", version=VERSION)
 
 app.add_middleware(
@@ -32,10 +33,6 @@ TEMPLATES_DIR = BASE_DIR / "templates"
 STATIC_DIR = BASE_DIR / "static"
 
 def ensure_exports_dir() -> Path:
-    """
-    Retourne un dossier exploitable pour les téléchargements.
-    Si 'exports' existe mais n'est pas un dossier, on bascule sur 'exports_data'.
-    """
     wanted = (PROJECT_ROOT / "exports").resolve()
     try:
         wanted.mkdir(parents=True, exist_ok=True)
@@ -52,7 +49,7 @@ CNAPS_DIR = (PROJECT_ROOT / "uploads" / "cnaps").resolve()
 CNAPS_DIR.mkdir(parents=True, exist_ok=True)
 
 # =========================================================
-# Données UI (CNAPS)
+# Nomenclature CNAPS (MAJ avec tes nouveaux items)
 # =========================================================
 DOCS: List[Dict] = [
     {"key": "autorisation_exercer", "label": "Autorisation d’exercer", "ext": ["pdf", "doc", "docx"]},
@@ -65,12 +62,19 @@ DOCS: List[Dict] = [
     {"key": "releves_comptes_6m", "label": "Relevés de comptes (6 mois)", "ext": ["pdf", "csv"]},
     {"key": "derniere_liasse", "label": "Dernière liasse fiscale", "ext": ["pdf", "zip"]},
     {"key": "grand_livre", "label": "Grand livre de comptes", "ext": ["pdf", "csv", "xls", "xlsx"]},
+
+    # Nouveaux éléments demandés
+    {"key": "bulletins_paie", "label": "Bulletins de paye", "ext": ["pdf", "zip"]},
+    {"key": "registre_unique_personnel", "label": "Registre unique du personnel", "ext": ["pdf", "xlsx", "xls"]},
+    {"key": "modele_carte_pro", "label": "Modèle carte professionnelle (entreprise)", "ext": ["pdf", "png", "jpg", "jpeg"]},
+    {"key": "factures_6m", "label": "Factures sur les 6 derniers mois", "ext": ["pdf", "zip"]},
+    {"key": "captures_site_web", "label": "Captures de toutes les pages du site internet", "ext": ["png", "jpg", "jpeg", "zip", "pdf"]},
 ]
 ALLOWED_SUFFIXES = {f".{e.lower()}" for d in DOCS for e in d["ext"]}
 MAX_BYTES = 25 * 1024 * 1024  # 25 Mo
 
 # =========================================================
-# Seed de l'UI (templates + css) si manquants
+# Seed UI (templates + css) — adapte NAV & contenus
 # =========================================================
 SEED_TEMPLATES: Dict[str,str] = {
     "base.html": """<!doctype html>
@@ -87,9 +91,8 @@ SEED_TEMPLATES: Dict[str,str] = {
         <div class="brand">CSI</div>
         <nav class="tabs">
           <a href="/" class="{% if request.url.path=='/' %}active{% endif %}">Accueil</a>
-          <a href="/analyse-planning" class="{% if request.url.path.startswith('/analyse-planning') %}active{% endif %}">Analyse planning</a>
+          <a href="/analyse-conformite" class="{% if request.url.path.startswith('/analyse-conformite') %}active{% endif %}">Analyse de conformité</a>
           <a href="/cnaps" class="{% if request.url.path.startswith('/cnaps') %}active{% endif %}">CNAPS</a>
-          <a href="/telechargements" class="{% if request.url.path.startswith('/telechargements') %}active{% endif %}">Téléchargements</a>
           <a href="/docs" target="_blank">Docs</a>
         </nav>
       </div>
@@ -98,70 +101,123 @@ SEED_TEMPLATES: Dict[str,str] = {
     <footer class="footer"><div class="container muted">Version : {{ version }}</div></footer>
   </body>
 </html>""",
+
     "index.html": """{% extends "base.html" %}
 {% block title %}CSI — Accueil{% endblock %}
 {% block content %}
   <h1>Bienvenue</h1>
-  <p class="muted">Choisissez un onglet ci-dessus pour démarrer.</p>
-{% endblock %}""",
-    "analyse_planning.html": """{% extends "base.html" %}
-{% block title %}CSI — Analyse planning{% endblock %}
-{% block content %}
-  <h1>Analyse des plannings</h1>
+  <p class="muted">
+    Cette application permet d'auditer une société de sécurité privée afin de vérifier sa conformité aux articles du livre 6 du Code de la Sécurité Intérieure.
+  </p>
   <div class="card">
-    <label for="planning-url">URL du planning</label>
-    <input id="planning-url" type="url" placeholder="https://exemple.tld/planning" />
-    <div class="row">
-      <button id="btn-analyze">Analyser</button>
-      <span id="status" class="muted"></span>
+    <p>Utilisez le menu en haut pour lancer une <b>Analyse de conformité</b> ou gérer les pièces <b>CNAPS</b>.</p>
+  </div>
+{% endblock %}""",
+
+    # Nouvelle page "Analyse de conformité"
+    "conformite.html": """{% extends "base.html" %}
+{% block title %}CSI — Analyse de conformité{% endblock %}
+{% block content %}
+  <h1>Analyse de conformité</h1>
+
+  <div class="cards">
+    <div class="card">
+      <h3>Analyse des plannings</h3>
+      <p class="muted small">Colle l’URL de ton planning puis clique <b>Analyser</b>.</p>
+      <input id="planning-url" type="url" placeholder="https://exemple.tld/planning" />
+      <div class="row">
+        <button id="btn-analyze-planning">Analyser</button>
+        <span id="planning-status" class="muted"></span>
+      </div>
+      <div id="planning-error" class="error" style="display:none"></div>
+      <div id="planning-result" style="display:none" class="small"></div>
+    </div>
+
+    <div class="card">
+      <h3>Analyse des pièces CNAPS</h3>
+      <p class="muted small">Clique sur <b>Analyser</b> pour auditer les fichiers déjà téléversés dans chaque catégorie.</p>
+      <div id="cnaps-analyses"></div>
     </div>
   </div>
-  <div id="error" class="error" style="display:none"></div>
-  <div id="result" style="display:none" class="card">
-    <h3>Résultat</h3>
-    <div id="meta" class="muted"></div>
-    <h4>Constats</h4>
-    <ul id="findings"></ul>
-    <h4>Aperçu (10 premières lignes)</h4>
-    <div id="preview"></div>
-  </div>
+
   <script>
-    const urlInput = document.getElementById('planning-url');
-    const btn = document.getElementById('btn-analyze');
-    const st = document.getElementById('status');
-    const err = document.getElementById('error');
-    const res = document.getElementById('result');
-    btn.addEventListener('click', async ()=>{
-      const u = urlInput.value.trim();
-      err.style.display='none'; res.style.display='none'; st.textContent='Analyse en cours…';
-      if(!u){ err.textContent='Merci de saisir une URL.'; err.style.display='block'; st.textContent=''; return; }
+    // ======== Analyse Planning (utilise l’endpoint existant si présent) ========
+    const pUrl = document.getElementById('planning-url');
+    const pBtn = document.getElementById('btn-analyze-planning');
+    const pSt  = document.getElementById('planning-status');
+    const pErr = document.getElementById('planning-error');
+    const pRes = document.getElementById('planning-result');
+
+    pBtn.addEventListener('click', async ()=>{
+      const u = (pUrl.value||'').trim();
+      pErr.style.display='none'; pRes.style.display='none'; pSt.textContent='Analyse en cours…';
+      if(!u){ pErr.textContent='Merci de saisir une URL.'; pErr.style.display='block'; pSt.textContent=''; return; }
       try{
-        const r = await fetch('/plannings/analyze', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({url:u})});
-        const j = await r.json();
-        if(!r.ok || !j.ok){ throw new Error(j?.message || 'Analyse impossible.'); }
-        st.textContent=''; res.style.display='block';
-        document.getElementById('meta').textContent = 'Lignes : ' + (j.data?.meta?.rows ?? '?');
-        const findings = document.getElementById('findings');
-        findings.innerHTML = (j.data?.findings||[]).map(f=>`<li>${f.type?`[${f.type}] `:''}${f.message||JSON.stringify(f)}</li>`).join('') || '<li>Aucun constat.</li>';
-        const rows = j.data?.preview || [];
-        const preview = document.getElementById('preview');
-        if(rows.length===0){ preview.innerHTML = "<p class='muted'>Aucun aperçu disponible.</p>"; }
-        else{
-          const cols = Object.keys(rows[0]);
-          preview.innerHTML = "<table><thead><tr>"+cols.map(c=>`<th>${c}</th>`).join("")+"</tr></thead><tbody>"+
-            rows.map(r=>"<tr>"+cols.map(c=>`<td>${r[c]??''}</td>`).join("")+"</tr>").join("")+
-            "</tbody></table>";
-        }
+        // on tente /plannings/analyze (ton routeur existant)
+        const r = await fetch('/plannings/analyze', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({url:u}) });
+        const j = await r.json().catch(()=>({}));
+        if(!r.ok || !j.ok){ throw new Error(j?.message || 'Analyse planning indisponible.'); }
+        pSt.textContent=''; pRes.style.display='block';
+        pRes.innerHTML = '<pre>'+JSON.stringify(j.data, null, 2)+'</pre>';
       }catch(e){
-        st.textContent=''; err.textContent = e.message || e; err.style.display='block';
+        pSt.textContent=''; pErr.textContent = e.message||e; pErr.style.display='block';
       }
     });
+
+    // ======== Analyse CNAPS (boutons Analyser par catégorie) ========
+    const CNAPS_DOCS = {{ DOCS | tojson }};
+    const container = document.getElementById('cnaps-analyses');
+
+    function row(d){
+      const id = 'a-' + d.key;
+      return `
+        <div class="row" style="align-items:center">
+          <div style="min-width:320px"><b>${d.label}</b> <span class="muted small">(${d.ext.join('/').toUpperCase()})</span></div>
+          <button onclick="runAna('${d.key}', '${d.label.replace(/'/g,"\\'")}')">Analyser</button>
+          <span id="${id}-st" class="muted small"></span>
+        </div>
+        <div id="${id}-out" class="small" style="margin:6px 0 12px 0"></div>
+      `;
+    }
+
+    window.runAna = async (key, label)=>{
+      const st = document.getElementById('a-'+key+'-st');
+      const out = document.getElementById('a-'+key+'-out');
+      st.textContent = 'Analyse en cours…'; out.innerHTML = '';
+      try{
+        const r = await fetch('/analyze/cnaps/'+encodeURIComponent(key));
+        const j = await r.json();
+        if(!r.ok || !j.ok){ throw new Error(j?.detail || 'Analyse indisponible'); }
+        st.textContent = '';
+        const files = j.files||[];
+        if(files.length===0){
+          out.innerHTML = `<div class="muted">Aucun fichier trouvé pour <b>${label}</b>.</div>`;
+        }else{
+          const rows = files.map(f=>`<tr><td>${f.name}</td><td>${f.size_fmt}</td><td>${f.mtime_h}</td><td>${f.flags?.join(', ')||''}</td></tr>`).join('');
+          out.innerHTML = `
+            <div class="muted">Résultat: ${files.length} fichier(s).</div>
+            <div class="tablewrap">
+              <table>
+                <thead><tr><th>Fichier</th><th>Taille</th><th>Modifié</th><th>Remarques</th></tr></thead>
+                <tbody>${rows}</tbody>
+              </table>
+            </div>`;
+        }
+      }catch(e){
+        st.textContent = '';
+        out.innerHTML = `<div class="error">${e.message||e}</div>`;
+      }
+    };
+
+    container.innerHTML = CNAPS_DOCS.map(row).join('');
   </script>
 {% endblock %}""",
+
+    # Page CNAPS (upload / gestion)
     "cnaps.html": """{% extends "base.html" %}
 {% block title %}CSI — CNAPS{% endblock %}
 {% block content %}
-  <h1>Analyse de conformité CNAPS — Téléversement</h1>
+  <h1>CNAPS — Téléversement et gestion des pièces</h1>
   <div class="grid">
     <div class="col">
       <div id="cards" class="cards"></div>
@@ -223,64 +279,6 @@ SEED_TEMPLATES: Dict[str,str] = {
     refresh();
   </script>
 {% endblock %}""",
-    "telechargements.html": """{% extends "base.html" %}
-{% block title %}CSI — Téléchargements{% endblock %}
-{% block content %}
-  <h1>Tous les dossiers à télécharger</h1>
-  <div class="row">
-    <button id="btn-refresh">Rafraîchir</button>
-    <a class="btn" href="/downloads/all.zip">Télécharger tout (ZIP)</a>
-    <button id="btn-zip-selected">Télécharger la sélection (ZIP)</button>
-  </div>
-  <div id="status" class="muted">Chargement…</div>
-  <div class="tablewrap">
-    <table id="tbl">
-      <thead><tr>
-        <th><input type="checkbox" id="select-all"></th>
-        <th>Nom</th><th>Taille</th><th>Modifié</th><th>Télécharger</th>
-      </tr></thead>
-      <tbody></tbody>
-    </table>
-  </div>
-  <script>
-    const tbody = document.querySelector('#tbl tbody');
-    const statusEl = document.getElementById('status');
-    async function load(){
-      statusEl.textContent='Chargement…'; tbody.innerHTML='';
-      try{
-        const r = await fetch('/downloads/list'); const j = await r.json();
-        const rows = j.files||[];
-        if(rows.length===0){ statusEl.textContent='Aucun fichier.'; return; }
-        statusEl.textContent = rows.length+' fichier(s)';
-        rows.forEach(f=>{
-          const tr = document.createElement('tr');
-          tr.innerHTML =
-            `<td><input type="checkbox" class="sel" data-name="${f.name}"></td>`+
-            `<td>${f.name}</td>`+
-            `<td>${f.size_fmt}</td>`+
-            `<td>${f.mtime_h}</td>`+
-            `<td><a href="/downloads/file/${encodeURIComponent(f.name)}">Télécharger</a></td>`;
-          tbody.appendChild(tr);
-        });
-      }catch(e){ statusEl.textContent='Erreur: '+(e.message||e); }
-    }
-    document.getElementById('btn-refresh').addEventListener('click', load);
-    document.getElementById('select-all').addEventListener('change', e=>{
-      document.querySelectorAll('input.sel').forEach(cb=>cb.checked=e.target.checked);
-    });
-    document.getElementById('btn-zip-selected').addEventListener('click', async ()=>{
-      const names=[...document.querySelectorAll('input.sel:checked')].map(cb=>cb.dataset.name);
-      if(names.length===0){ alert('Sélectionne au moins un fichier.'); return; }
-      try{
-        const r = await fetch('/downloads/zip',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({names})});
-        if(!r.ok){ const j=await r.json().catch(()=>({detail:'Erreur'})); throw new Error(j.detail||'Erreur zip'); }
-        const blob = await r.blob(); const url = URL.createObjectURL(blob);
-        const a = document.createElement('a'); a.href=url; a.download='selection.zip'; a.click(); URL.revokeObjectURL(url);
-      }catch(e){ alert(e.message||e); }
-    });
-    load();
-  </script>
-{% endblock %}""",
 }
 
 SEED_STATIC: Dict[str,str] = {
@@ -318,34 +316,30 @@ th,td{border:1px solid var(--border);padding:8px;text-align:left}
 def seed_ui_files() -> None:
     TEMPLATES_DIR.mkdir(parents=True, exist_ok=True)
     STATIC_DIR.mkdir(parents=True, exist_ok=True)
-    # templates
     for name, content in SEED_TEMPLATES.items():
         dest = TEMPLATES_DIR / name
         if not dest.exists():
             dest.write_text(content, encoding="utf-8")
-    # css
     for name, content in SEED_STATIC.items():
         dest = STATIC_DIR / name
         if not dest.exists():
             dest.write_text(content, encoding="utf-8")
 
-# Seed à l'import (au démarrage du process)
 try:
     seed_ui_files()
-except Exception as e:
-    # On ne bloque pas l'app si le FS est en lecture seule; on aura un fallback HTML plus bas.
+except Exception:
     pass
 
-# Templating & Static
+# Static + templates
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 TEMPLATES = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 # =========================================================
-# Option : routeur planning existant
+# Option : routeur planning existant (si présent)
 # =========================================================
 try:
     from app.plannings.router import router as planning_router
-    app.include_router(planning_router)
+    app.include_router(planning_router)  # expose /plannings/analyze
 except Exception:
     pass
 
@@ -369,25 +363,21 @@ def _human_size(n: int) -> str:
     return f"{n/1024**3:.2f} Go"
 
 def render_template(request: Request, name: str, context: dict) -> HTMLResponse:
-    """Rend un template; si absent, renvoie un fallback HTML blanc pour éviter les 500."""
     try:
         return TEMPLATES.TemplateResponse(name, {**context, "request": request})
     except TemplateNotFound:
-        # Fallback minimal (fond blanc)
         html = f"""<!doctype html><meta charset="utf-8">
 <title>CSI</title>
 <link rel="stylesheet" href="/static/style.css">
 <div class="container">
   <h1>CSI — Interface</h1>
-  <p class="muted">Template <b>{name}</b> introuvable. L'UI a été auto-seedée, re-déploie ou rafraîchis la page.</p>
+  <p class="muted">Template <b>{name}</b> introuvable. L'UI a été auto-seedée — actualise la page.</p>
   <ul>
     <li><a href="/">Accueil</a></li>
-    <li><a href="/analyse-planning">Analyse planning</a></li>
+    <li><a href="/analyse-conformite">Analyse de conformité</a></li>
     <li><a href="/cnaps">CNAPS</a></li>
-    <li><a href="/telechargements">Téléchargements</a></li>
     <li><a href="/docs" target="_blank">Docs</a></li>
   </ul>
-  <pre class="muted small">templates: {TEMPLATES_DIR}</pre>
 </div>"""
         return HTMLResponse(html, status_code=200)
 
@@ -418,26 +408,24 @@ async def debug():
     }
 
 # =========================================================
-# PAGES (UI blanche avec onglets)
+# PAGES
 # =========================================================
 @app.get("/", include_in_schema=False)
 async def home(request: Request):
     return render_template(request, "index.html", {"version": VERSION})
 
-@app.get("/analyse-planning", include_in_schema=False)
-async def analyse_planning_page(request: Request):
-    return render_template(request, "analyse_planning.html", {"version": VERSION})
+@app.get("/analyse-conformite", include_in_schema=False)
+async def conformite(request: Request):
+    return render_template(request, "conformite.html", {"version": VERSION, "DOCS": DOCS})
 
 @app.get("/cnaps", include_in_schema=False)
 async def cnaps_page(request: Request):
     return render_template(request, "cnaps.html", {"version": VERSION, "DOCS": DOCS})
 
-@app.get("/telechargements", include_in_schema=False)
-async def telechargements_page(request: Request):
-    return render_template(request, "telechargements.html", {"version": VERSION})
+# (NB: plus de route /analyse-planning en haut — c’est intégré à /analyse-conformite)
 
 # =========================================================
-# API CNAPS
+# API CNAPS (upload & fichiers)
 # =========================================================
 @app.get("/cnaps/list")
 async def cnaps_list():
@@ -490,71 +478,52 @@ async def cnaps_del(kind: str, name: str):
     return {"ok": True}
 
 # =========================================================
-# API Téléchargements (exports)
+# API Analyses (boutons "Analyser")
 # =========================================================
-@app.get("/downloads/list")
-async def list_downloads():
-    if not EXPORTS_DIR.exists():
-        return {"files": []}
-    items = []
-    for p in sorted(EXPORTS_DIR.iterdir()):
+class CNAPSSummary(BaseModel):
+    ok: bool
+    kind: str
+    label: str
+    files: List[Dict]
+
+def _doc_by_key(key: str) -> Optional[Dict]:
+    for d in DOCS:
+        if d["key"] == key:
+            return d
+    return None
+
+@app.get("/analyze/cnaps/{kind}")
+async def analyze_cnaps(kind: str):
+    d = _doc_by_key(kind)
+    if not d:
+        raise HTTPException(404, "Catégorie inconnue.")
+    dirp = _kind_dir(kind)
+    files = []
+    for p in sorted(dirp.iterdir()):
         if p.is_file():
             st = p.stat()
-            items.append({
+            flags = []
+            # petites heuristiques : extension attendue, taille nulle, date très ancienne
+            if p.suffix.lower() not in {'.'+e for e in d["ext"]}:
+                flags.append("extension inattendue")
+            if st.st_size == 0:
+                flags.append("fichier vide")
+            if datetime.fromtimestamp(st.st_mtime).year < 2020:
+                flags.append("très ancien")
+            files.append({
                 "name": p.name,
                 "size": st.st_size,
                 "size_fmt": _human_size(st.st_size),
                 "mtime": int(st.st_mtime),
                 "mtime_h": datetime.fromtimestamp(st.st_mtime).strftime("%Y-%m-%d %H:%M"),
-                "url": f"/downloads/file/{p.name}",
+                "flags": flags
             })
-    return {"files": items}
+    return {"ok": True, "kind": kind, "label": d["label"], "files": files}
 
-@app.get("/downloads/file/{name}")
-async def download_file(name: str):
-    if "/" in name or "\\" in name or ".." in name:
-        raise HTTPException(400, "Nom invalide.")
-    path = EXPORTS_DIR / name
-    if not path.is_file():
-        raise HTTPException(404, "Fichier introuvable.")
-    return FileResponse(path, filename=path.name)
-
-@app.get("/downloads/all.zip")
-async def download_all_zip():
-    files = [p for p in EXPORTS_DIR.iterdir() if p.is_file()]
-    if not files:
-        raise HTTPException(404, "Aucun fichier à zipper.")
-    buf = io.BytesIO()
-    import zipfile
-    with zipfile.ZipFile(buf, "w", compression=zipfile.ZIP_DEFLATED) as z:
-        for p in files:
-            z.write(p, arcname=p.name)
-    buf.seek(0)
-    return StreamingResponse(buf, media_type="application/zip",
-                             headers={"Content-Disposition": "attachment; filename=exports_tout.zip"})
-
-from pydantic import BaseModel
-class ZipSelection(BaseModel):
-    names: List[str]
-
-@app.post("/downloads/zip")
-async def download_selection_zip(payload: ZipSelection):
-    files = []
-    seen = set()
-    for name in payload.names:
-        if "/" in name or "\\" in name or ".." in name:
-            raise HTTPException(400, f"Nom invalide: {name}")
-        p = EXPORTS_DIR / name
-        if not p.is_file():
-            raise HTTPException(404, f"Introuvable: {name}")
-        if name not in seen:
-            files.append(p); seen.add(name)
-    if not files:
-        raise HTTPException(400, "Aucun fichier sélectionné.")
-    buf = io.BytesIO()
-    import zipfile
-    with zipfile.ZipFile(buf, "w", compression=zipfile.ZIP_DEFLATED) as z:
-        for p in files: z.write(p, arcname=p.name)
-    buf.seek(0)
-    return StreamingResponse(buf, media_type="application/zip",
-                             headers={"Content-Disposition":"attachment; filename=selection.zip"})
+@app.get("/analyze/cnaps")
+async def analyze_cnaps_all():
+    out = {}
+    for d in DOCS:
+        r = await analyze_cnaps(d["key"])  # type: ignore
+        out[d["key"]] = r["files"]
+    return {"ok": True, "data": out}
