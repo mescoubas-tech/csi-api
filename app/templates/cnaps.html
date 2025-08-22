@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block title %}CSI — CNAPS{% endblock %}
+{% block content %}
+  <h1>Analyse de conformité CNAPS — Téléversement</h1>
+
+  <div class="grid">
+    <div class="col">
+      <div id="cards" class="cards"></div>
+      <p class="muted small">Taille max : 25 Mo par fichier.</p>
+    </div>
+    <aside class="col">
+      <div class="card">
+        <h3>Nomenclature des pièces</h3>
+        <ul id="nomenclature" class="small"></ul>
+      </div>
+    </aside>
+  </div>
+
+  <script>
+    const DOCS = {{ DOCS | tojson }};
+
+    function cardHtml(d, files){
+      return `
+      <div class="card ${files.length>0?'ok':''}" id="card-${d.key}">
+        <h3>${d.label} <span class="muted small">(${d.ext.join('/').toUpperCase()})</span> <span class="state">${files.length>0?'✓':''}</span></h3>
+        <div class="files">${
+          files.length===0 ? "<span class='muted small'>Aucun fichier</span>"
+            : files.map(f => `• <a href="/cnaps/file/${d.key}/${f.name}" target="_blank">${f.name}</a>
+              <span class='muted small'>(${f.size_fmt}, ${f.mtime_h})</span>
+              <button class='small' onclick="removeFile('${d.key}','${f.name.replace(/'/g,"\\'")}')">Supprimer</button>`
+            ).join("<br>")
+        }</div>
+        <div class="actions">
+          <input type="file" id="file-${d.key}" style="display:none" accept="${d.ext.map(e=>'.'+e).join(',')}">
+          <button onclick="chooseFile('${d.key}')">Choisir un fichier</button>
+          <button class="muted small" onclick="refresh()">Rafraîchir</button>
+        </div>
+      </div>`;
+    }
+
+    function chooseFile(kind){
+      const input = document.getElementById('file-'+kind);
+      input.onchange = async (ev)=>{
+        if(!ev.target.files || ev.target.files.length===0) return;
+        const f = ev.target.files[0];
+        const fd = new FormData();
+        fd.append('kind', kind);
+        fd.append('file', f);
+        try{
+          const r = await fetch('/cnaps/upload', { method:'POST', body: fd });
+          if(!r.ok){ const j=await r.json().catch(()=>({detail:'Erreur'})); throw new Error(j.detail||'Erreur upload'); }
+          refresh();
+        }catch(e){ alert(e.message||e); }
+        finally{ ev.target.value=''; }
+      };
+      input.click();
+    }
+
+    async function removeFile(kind, name){
+      if(!confirm('Supprimer '+name+' ?')) return;
+      const r = await fetch('/cnaps/file/'+encodeURIComponent(kind)+'/'+encodeURIComponent(name), { method:'DELETE' });
+      if(r.ok) refresh(); else alert('Suppression impossible');
+    }
+
+    async function refresh(){
+      const r = await fetch('/cnaps/list'); const j = await r.json();
+      const wrap = document.getElementById('cards'); wrap.innerHTML='';
+      DOCS.forEach(d=>{
+        const files = (j.data && j.data[d.key]) || [];
+        wrap.insertAdjacentHTML('beforeend', cardHtml(d, files));
+      });
+      document.getElementById('nomenclature').innerHTML = DOCS.map(d=>`<li>${d.label}</li>`).join('');
+    }
+    refresh();
+  </script>
+{% endblock %}
