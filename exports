@@ -1,0 +1,9 @@
+exports/
+  dossier_1.zip
+  dossier_2.zip
+  recap_septembre.xlsx
+  consignes.pdf
+app/
+  main.py
+  ...
+requirements.txt
