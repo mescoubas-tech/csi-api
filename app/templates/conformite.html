@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}CSI — Analyse de conformité{% endblock %}
+{% block content %}
+  <h1>Analyse de conformité</h1>
+
+  <div class="cards">
+    <div class="card">
+      <h3>Analyse des plannings</h3>
+      <p class="muted small">Colle l’URL de ton planning puis clique <b>Analyser</b>.</p>
+      <input id="planning-url" type="url" placeholder="https://exemple.tld/planning" />
+      <div class="row">
+        <button id="btn-analyze-planning">Analyser</button>
+        <span id="planning-status" class="muted"></span>
+      </div>
+      <div id="planning-error" class="error" style="display:none"></div>
+      <div id="planning-result" style="display:none" class="small"></div>
+    </div>
+  </div>
+
+  <script>
+    const pUrl = document.getElementById('planning-url');
+    const pBtn = document.getElementById('btn-analyze-planning');
+    const pSt  = document.getElementById('planning-status');
+    const pErr = document.getElementById('planning-error');
+    const pRes = document.getElementById('planning-result');
+
+    pBtn.addEventListener('click', async ()=>{
+      const u = (pUrl.value||'').trim();
+      pErr.style.display='none'; pRes.style.display='none'; pSt.textContent='Analyse en cours…';
+      if(!u){ pErr.textContent='Merci de saisir une URL.'; pErr.style.display='block'; pSt.textContent=''; return; }
+      try{
+        const r = await fetch('/plannings/analyze', {
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({url:u})
+        });
+        const j = await r.json().catch(()=>({}));
+        if(!r.ok || !j.ok){ throw new Error(j?.message || 'Analyse planning indisponible.'); }
+        pSt.textContent=''; pRes.style.display='block';
+        pRes.innerHTML = '<pre>'+JSON.stringify(j.data, null, 2)+'</pre>';
+      }catch(e){
+        pSt.textContent=''; pErr.textContent = e.message||e; pErr.style.display='block';
+      }
+    });
+  </script>
+{% endblock %}
