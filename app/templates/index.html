@@ -1,0 +1,33 @@
+<!doctype html><meta charset="utf-8">
+<title>CSI • Analyse des plannings</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="icon" href="data:,">
+<style>
+  :root{--bg:#0b1020;--card:#111833;--text:#e6e9f2;--muted:#9aa3b2;--accent:#6aa1ff}
+  *{box-sizing:border-box} body{margin:0;background:linear-gradient(180deg,#0b1020,#0e1630);color:var(--text);font:16px/1.6 system-ui,-apple-system,Segoe UI,Roboto,Arial}
+  .wrap{max-width:880px;margin:48px auto;padding:0 20px}
+  .card{background:var(--card);border:1px solid #1b254a;border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,.3);padding:24px}
+  h1{margin:0 0 12px;font-size:28px} .muted{color:var(--muted)}
+  label{display:block;margin:12px 0 6px}
+  input[type=url]{width:100%;padding:12px 14px;border-radius:12px;border:1px solid #26325f;background:#0d1330;color:#eaf1ff}
+  .row{display:flex;gap:12px;margin-top:16px}
+  button{cursor:pointer;border:1px solid #2a3a75;background:#1a2a6a;color:#eaf1ff;padding:12px 16px;border-radius:12px}
+  a{color:var(--accent);text-decoration:none}
+</style>
+<div class="wrap"><div class="card">
+  <h1>Analyse des plannings</h1>
+  <p class="muted">Colle l’URL du planning puis clique <b>Analyser</b>.</p>
+  <label for="planning-url">URL du planning</label>
+  <input id="planning-url" type="url" placeholder="https://exemple.tld/planning">
+  <div class="row">
+    <button id="btn-analyze">Analyser</button>
+    <a href="/docs" target="_blank">Docs API →</a>
+  </div>
+</div></div>
+<script>
+  document.getElementById("btn-analyze").addEventListener("click", () => {
+    const u = document.getElementById("planning-url").value.trim();
+    if (!u) { alert("Merci de saisir une URL."); return; }
+    location.href = "/analyse-planning?u=" + encodeURIComponent(u);
+  });
+</script>
