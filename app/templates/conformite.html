@@ -3,21 +3,48 @@
 {% block content %}
   <h1>Analyse de conformité</h1>
 
-  <div class="cards">
+  <div class="cards" id="cards">
+    <!-- Carte Plannings -->
     <div class="card">
-      <h3>Analyse des plannings</h3>
+      <h3>Plannings</h3>
       <p class="muted small">Colle l’URL de ton planning puis clique <b>Analyser</b>.</p>
       <input id="planning-url" type="url" placeholder="https://exemple.tld/planning" />
       <div class="row">
         <button id="btn-analyze-planning">Analyser</button>
-        <span id="planning-status" class="muted"></span>
+        <span id="planning-status" class="muted small"></span>
       </div>
-      <div id="planning-error" class="error" style="display:none"></div>
+      <div id="planning-error" class="error small" style="display:none"></div>
       <div id="planning-result" style="display:none" class="small"></div>
     </div>
   </div>
 
   <script>
+    // ===== Données des pièces (injectées par le backend) =====
+    const DOCS = {{ DOCS | tojson }};
+
+    // ===== Ajoute une carte par pièce CNAPS avec un bouton "Analyser" =====
+    const wrap = document.getElementById('cards');
+
+    function cardCNAPS(doc){
+      const id = 'cn-' + doc.key;
+      const exts = (doc.ext || []).join('/').toUpperCase();
+      return `
+        <div class="card" id="${id}">
+          <h3>${doc.label}</h3>
+          <p class="muted small">${exts ? 'Formats: '+exts : ''}</p>
+          <div class="row">
+            <button onclick="runAna('${doc.key}', '${doc.label.replace(/'/g,"\\'")}')">Analyser</button>
+            <span id="${id}-st" class="muted small"></span>
+          </div>
+          <div id="${id}-out" class="small"></div>
+        </div>
+      `;
+    }
+
+    // Insère toutes les cartes CNAPS après la carte Plannings
+    wrap.insertAdjacentHTML('beforeend', DOCS.map(cardCNAPS).join(''));
+
+    // ===== Analyse Plannings (si l’endpoint existe déjà côté API) =====
     const pUrl = document.getElementById('planning-url');
     const pBtn = document.getElementById('btn-analyze-planning');
     const pSt  = document.getElementById('planning-status');
@@ -42,5 +69,36 @@
         pSt.textContent=''; pErr.textContent = e.message||e; pErr.style.display='block';
       }
     });
+
+    // ===== Analyse d'une pièce CNAPS =====
+    window.runAna = async (key, label)=>{
+      const base = 'cn-' + key;
+      const st = document.getElementById(base+'-st');
+      const out = document.getElementById(base+'-out');
+      st.textContent = 'Analyse en cours…'; out.innerHTML = '';
+      try{
+        const r = await fetch('/analyze/cnaps/'+encodeURIComponent(key));
+        const j = await r.json();
+        if(!r.ok || !j.ok){ throw new Error(j?.detail || 'Analyse indisponible'); }
+        st.textContent = '';
+        const files = j.files||[];
+        if(files.length===0){
+          out.innerHTML = `<div class="muted">Aucun fichier détecté pour <b>${label}</b>.</div>`;
+        }else{
+          const rows = files.map(f=>`<tr><td>${f.name}</td><td>${f.size_fmt}</td><td>${f.mtime_h}</td><td>${(f.flags||[]).join(', ')}</td></tr>`).join('');
+          out.innerHTML = `
+            <div class="muted">Résultat: ${files.length} fichier(s).</div>
+            <div class="tablewrap">
+              <table>
+                <thead><tr><th>Fichier</th><th>Taille</th><th>Modifié</th><th>Remarques</th></tr></thead>
+                <tbody>${rows}</tbody>
+              </table>
+            </div>`;
+        }
+      }catch(e){
+        st.textContent = '';
+        out.innerHTML = `<div class="error">${e.message||e}</div>`;
+      }
+    };
   </script>
 {% endblock %}
